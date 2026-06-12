@@ -319,28 +319,22 @@ def get_employee_career_history(
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
     return db.query(CareerHistory).filter(CareerHistory.employee_id == employee_id).order_by(CareerHistory.change_date.desc()).all()
 
-# Terminate Employee (Soft Delete) - (RH or Admin)
+# Delete Employee (Physical Delete) - (Admin only)
 @router.delete("/{employee_id}")
-def terminate_employee(
+def delete_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["admin"]))
 ):
     emp = db.query(Employee).filter(Employee.id == employee_id).first()
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
         
-    if emp.status == "terminated":
-        raise HTTPException(status_code=400, detail="Colaborador já está desligado.")
-        
-    # Log career change
-    log_career(db, employee_id, current_user.username, "status", emp.status, "terminated", "Rescisão de Contrato")
-    
-    emp.status = "terminated"
+    db.delete(emp)
     db.commit()
     
-    log_action(db, current_user.id, "TERMINATE_EMPLOYEE", "employees", employee_id, {"status": ["active", "terminated"]})
-    return {"message": "Colaborador desligado com sucesso."}
+    log_action(db, current_user.id, "DELETE_EMPLOYEE", "employees", employee_id, {"name": emp.name})
+    return {"message": "Cadastro do colaborador excluído com sucesso."}
 
 @router.delete("/dependent/{dependent_id}")
 def delete_dependent(

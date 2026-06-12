@@ -35,27 +35,20 @@ const EmployeeList = ({ onSelectEmployee, onAddNew, onEditEmployee, onDeleteEmpl
     fetchEmployees()
   }, [searchTerm, statusFilter, deptFilter])
 
-  const handleDeleteEmployee = async (id) => {
-    const reason = window.prompt("Por favor, insira a justificativa / motivo para o desligamento do colaborador:")
-    if (reason === null) return // User cancelled
-    if (!reason.trim()) {
-      alert("A justificativa é obrigatória para efetuar o desligamento.")
-      return
-    }
-    
-    try {
-      await api.put(`/employees/${id}`, {
-        status: 'terminated',
-        reason_for_change: reason
-      })
-      alert("Colaborador desligado com sucesso!")
-      fetchEmployees() // Refresh the list
-    } catch (err) {
-      alert(err.response?.data?.detail || "Erro ao desligar colaborador.")
+  const handleDeleteEmployee = async (emp) => {
+    if (window.confirm(`Tem certeza absoluta de que deseja EXCLUIR PERMANENTEMENTE o cadastro de "${emp.name}"? Esta ação é irreversível e apagará todos os dados de histórico, jornada, documentos, dependentes e ocorrências.`)) {
+      try {
+        await api.delete(`/employees/${emp.id}`)
+        alert("Cadastro do colaborador excluído com sucesso!")
+        fetchEmployees() // Refresh the list
+      } catch (err) {
+        alert(err.response?.data?.detail || "Erro ao excluir colaborador.")
+      }
     }
   }
 
-  const canAdd = ['admin', 'rh'].includes(user?.role)
+  const isAdmin = user?.role === 'admin'
+  const canEdit = ['admin', 'rh'].includes(user?.role)
 
   const getStatusBadgeClass = (status) => {
     const classes = {
@@ -83,7 +76,7 @@ const EmployeeList = ({ onSelectEmployee, onAddNew, onEditEmployee, onDeleteEmpl
           <h1 className="text-2xl font-bold text-slate-800">Colaboradores</h1>
           <p className="text-sm text-slate-500">Gestão e cadastro de colaboradores do escritório.</p>
         </div>
-        {canAdd && (
+        {canEdit && (
           <button
             onClick={onAddNew}
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-900/10 transition-all cursor-pointer"
@@ -205,31 +198,29 @@ const EmployeeList = ({ onSelectEmployee, onAddNew, onEditEmployee, onDeleteEmpl
                         >
                           <ChevronRight className="w-4 h-4" />
                         </button>
-                        {canAdd && (
-                          <>
-                            <button
-                              title="Editar Ficha"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onEditEmployee(emp.id)
-                              }}
-                              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-all cursor-pointer"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            {emp.status !== 'terminated' && (
-                              <button
-                                title="Desligar Colaborador"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteEmployee(emp.id)
-                                }}
-                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-all cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </>
+                        {canEdit && (
+                          <button
+                            title="Editar Ficha"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onEditEmployee(emp.id)
+                            }}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-all cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            title="Excluir Cadastro Permanentemente"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteEmployee(emp)
+                            }}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </div>
                     </td>

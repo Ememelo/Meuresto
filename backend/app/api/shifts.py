@@ -11,13 +11,16 @@ router = APIRouter(tags=["shifts_and_overtime"])
 
 # ----------------- Shift Endpoints -----------------
 
+from app.api.employees import check_employee_group
+
 @router.get("/shifts/employee/{employee_id}", response_model=ShiftResponse)
 def get_employee_shift(
     employee_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    shift = db.query(Shift).join(Employee).filter(Shift.employee_id == employee_id, Employee.user_id == current_user.id).first()
+    check_employee_group(db, employee_id, current_user)
+    shift = db.query(Shift).filter(Shift.employee_id == employee_id).first()
     if not shift:
         raise HTTPException(status_code=404, detail="Jornada não cadastrada para este colaborador.")
     return shift
@@ -27,9 +30,9 @@ def update_employee_shift(
     employee_id: str,
     shift_in: ShiftBase,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+    emp = check_employee_group(db, employee_id, current_user)
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
     shift = db.query(Shift).filter(Shift.employee_id == employee_id).first()
@@ -57,9 +60,9 @@ def update_employee_shift(
 def launch_overtime(
     overtime_in: OvertimeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == overtime_in.employee_id, Employee.user_id == current_user.id).first()
+    emp = check_employee_group(db, overtime_in.employee_id, current_user)
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
         
@@ -109,9 +112,7 @@ def get_employee_overtime(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    check_employee_group(db, employee_id, current_user)
     return db.query(Overtime).filter(Overtime.employee_id == employee_id).all()
 
 @router.put("/overtime/{overtime_id}", response_model=OvertimeResponse)
@@ -119,9 +120,12 @@ def update_overtime_status(
     overtime_id: str,
     status_update: OvertimeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
+    query = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    ot = query.first()
     if not ot:
         raise HTTPException(status_code=404, detail="Lançamento de hora extra não encontrado.")
         
@@ -144,9 +148,12 @@ def update_overtime_status(
 def delete_overtime(
     overtime_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
+    query = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    ot = query.first()
     if not ot:
         raise HTTPException(status_code=404, detail="Lançamento de hora extra não encontrado.")
     db.delete(ot)
@@ -159,13 +166,16 @@ def edit_overtime(
     overtime_id: str,
     overtime_in: OvertimeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
+    query = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    ot = query.first()
     if not ot:
         raise HTTPException(status_code=404, detail="Lançamento de hora extra não encontrado.")
         
-    emp = db.query(Employee).filter(Employee.id == overtime_in.employee_id, Employee.user_id == current_user.id).first()
+    emp = check_employee_group(db, overtime_in.employee_id, current_user)
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
         

@@ -19,6 +19,8 @@ from app.api.dashboard import router as dashboard_router
 from app.api.audit import router as audit_router
 from app.api.financial import router as financial_router
 from app.api.backup import router as backup_router
+from app.api.groups import router as groups_router
+from app.api.suppliers import router as suppliers_router
 
 
 # Create Database tables on startup
@@ -28,7 +30,60 @@ def auto_migrate():
     db = SessionLocal()
     try:
         from sqlalchemy import text
-        # Existing columns
+        # 1. Create groups table if not exists
+        try:
+            db.execute(text("SELECT id FROM groups LIMIT 1"))
+        except Exception:
+            db.rollback()
+            print("Auto-migration: Creating groups table...")
+            db.execute(text("""
+                CREATE TABLE groups (
+                    id VARCHAR(36) PRIMARY KEY,
+                    name VARCHAR(100) UNIQUE NOT NULL,
+                    is_active BOOLEAN DEFAULT true NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            db.commit()
+
+        # 1b. Create suppliers table if not exists
+        try:
+            db.execute(text("SELECT id FROM suppliers LIMIT 1"))
+        except Exception:
+            db.rollback()
+            print("Auto-migration: Creating suppliers table...")
+            db.execute(text("""
+                CREATE TABLE suppliers (
+                    id VARCHAR(36) PRIMARY KEY,
+                    group_id VARCHAR(36),
+                    corporate_name VARCHAR(255) NOT NULL,
+                    trade_name VARCHAR(255) NOT NULL,
+                    cnpj VARCHAR(20) NOT NULL,
+                    state_inscription VARCHAR(30),
+                    contact_person VARCHAR(100),
+                    phone VARCHAR(20),
+                    whatsapp VARCHAR(20),
+                    email VARCHAR(100),
+                    address VARCHAR(255),
+                    category VARCHAR(50) NOT NULL,
+                    preferred_payment_method VARCHAR(50),
+                    bank VARCHAR(50),
+                    agency VARCHAR(20),
+                    account VARCHAR(30),
+                    pix_key VARCHAR(100),
+                    payment_terms VARCHAR(100),
+                    delivery_days VARCHAR(100),
+                    notes TEXT,
+                    is_active BOOLEAN DEFAULT true NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_by VARCHAR(50),
+                    updated_by VARCHAR(50)
+                )
+            """))
+            db.commit()
+
+        # 2. Add ctps, pis, reservista, user_id, password_reset_requested, has_financial_access (old migrations)
         columns_to_add = {
             "ctps": ("employees", "VARCHAR(30)"),
             "pis": ("employees", "VARCHAR(30)"),
@@ -80,7 +135,100 @@ def auto_migrate():
             db.execute(text("ALTER TABLE users ADD COLUMN has_financial_access BOOLEAN DEFAULT false"))
             db.commit()
 
-        # Update existing records to default admin's user_id if null
+        # 3. Add group_id to users, employees, financial_revenues, financial_expenses, audit_logs
+        group_columns = [
+            ("users", "group_id"),
+            ("employees", "group_id"),
+            ("financial_revenues", "group_id"),
+            ("financial_expenses", "group_id"),
+            ("audit_logs", "group_id")
+        ]
+        for table, col in group_columns:
+            try:
+                db.execute(text(f"SELECT {col} FROM {table} LIMIT 1"))
+            except Exception:
+                db.rollback()
+                print(f"Auto-migration: Adding column {col} to {table} table...")
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} VARCHAR(36)"))
+                db.commit()
+
+        # 3b. Add new evolved financial columns
+        financial_new_cols = [
+            # Revenues
+            ("financial_revenues", "expected_date", "DATE"),
+            ("financial_revenues", "received_date", "DATE"),
+            ("financial_revenues", "payment_method", "VARCHAR(50)"),
+            ("financial_revenues", "status", "VARCHAR(20)"),
+            ("financial_revenues", "client", "VARCHAR(255)"),
+            ("financial_revenues", "observations", "TEXT"),
+            ("financial_revenues", "created_at", "TIMESTAMP"),
+            ("financial_revenues", "updated_at", "TIMESTAMP"),
+            ("financial_revenues", "updated_by", "VARCHAR(50)"),
+            ("financial_revenues", "change_history", "TEXT"),
+            # Expenses
+            ("financial_expenses", "supplier_id", "VARCHAR(36)"),
+            ("financial_expenses", "due_date", "DATE"),
+            ("financial_expenses", "payment_date", "DATE"),
+            ("financial_expenses", "payment_method", "VARCHAR(50)"),
+            ("financial_expenses", "status", "VARCHAR(20)"),
+            ("financial_expenses", "observations", "TEXT"),
+            ("financial_expenses", "is_recurring", "BOOLEAN"),
+            ("financial_expenses", "recurrence_period", "VARCHAR(20)"),
+            ("financial_expenses", "created_at", "TIMESTAMP"),
+            ("financial_expenses", "updated_at", "TIMESTAMP"),
+            ("financial_expenses", "updated_by", "VARCHAR(50)"),
+            ("financial_expenses", "change_history", "TEXT"),
+        ]
+        for table, col, col_type in financial_new_cols:
+            try:
+                db.execute(text(f"SELECT {col} FROM {table} LIMIT 1"))
+            except Exception:
+                db.rollback()
+                print(f"Auto-migration: Adding column {col} to {table} table...")
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                db.commit()
+
+        # 4. Check if at least one group exists. If not, create a default group.
+        default_group = db.execute(text("SELECT id FROM groups LIMIT 1")).fetchone()
+        if not default_group:
+            import uuid
+            from datetime import datetime
+            default_group_id = str(uuid.uuid4())
+            db.execute(text(f"INSERT INTO groups (id, name, is_active, created_at) VALUES ('{default_group_id}', 'Grupo Padrão', 1, '{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}')"))
+            db.commit()
+            print(f"Auto-migration: Created default group with ID {default_group_id}")
+        else:
+            default_group_id = default_group[0]
+
+        # 5. Populate group_id for existing records
+        # Update users, employees, financial data, and audit logs to the default group if null (admin master remains null)
+        db.execute(text(f"UPDATE users SET group_id = '{default_group_id}' WHERE group_id IS NULL AND username != 'admin'"))
+        db.execute(text(f"UPDATE employees SET group_id = '{default_group_id}' WHERE group_id IS NULL"))
+        db.execute(text(f"UPDATE financial_revenues SET group_id = '{default_group_id}' WHERE group_id IS NULL"))
+        db.execute(text(f"UPDATE financial_expenses SET group_id = '{default_group_id}' WHERE group_id IS NULL"))
+        db.execute(text(f"UPDATE audit_logs SET group_id = '{default_group_id}' WHERE group_id IS NULL"))
+        db.commit()
+
+        # 5b. Migrate legacy financial columns data
+        try:
+            db.execute(text("UPDATE financial_revenues SET expected_date = date WHERE expected_date IS NULL"))
+            db.execute(text("UPDATE financial_revenues SET status = 'Recebido' WHERE status IS NULL OR status = ''"))
+            db.execute(text("UPDATE financial_revenues SET received_date = date WHERE received_date IS NULL AND status = 'Recebido'"))
+            db.execute(text("UPDATE financial_revenues SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
+            db.execute(text("UPDATE financial_revenues SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"))
+
+            db.execute(text("UPDATE financial_expenses SET due_date = date WHERE due_date IS NULL"))
+            db.execute(text("UPDATE financial_expenses SET status = 'Pago' WHERE status IS NULL OR status = ''"))
+            db.execute(text("UPDATE financial_expenses SET payment_date = date WHERE payment_date IS NULL AND status = 'Pago'"))
+            db.execute(text("UPDATE financial_expenses SET is_recurring = 0 WHERE is_recurring IS NULL"))
+            db.execute(text("UPDATE financial_expenses SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
+            db.execute(text("UPDATE financial_expenses SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Auto-migration: Legacy financial update failed: {e}")
+
+        # Update existing records to default admin's user_id if null (old migration)
         admin_user = db.query(User).filter(User.username == "admin").first()
         if admin_user:
             db.execute(text(f"UPDATE employees SET user_id = '{admin_user.id}' WHERE user_id IS NULL"))
@@ -155,6 +303,8 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 app.include_router(financial_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
+app.include_router(groups_router, prefix="/api")
+app.include_router(suppliers_router, prefix="/api")
 
 
 @app.get("/")

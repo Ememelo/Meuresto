@@ -2,11 +2,27 @@ from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, Field
 
+# ----------------- Group Schemas -----------------
+class GroupBase(BaseModel):
+    name: str
+    is_active: bool = True
+
+class GroupCreate(GroupBase):
+    pass
+
+class GroupResponse(GroupBase):
+    id: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
 # ----------------- User Schemas -----------------
 class UserBase(BaseModel):
     username: str
     email: str
     role: str
+    group_id: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -22,6 +38,9 @@ class UserResponse(UserBase):
 
 class UserRoleUpdateRequest(BaseModel):
     role: str
+
+class UserGroupUpdateRequest(BaseModel):
+    group_id: str
 
 class Token(BaseModel):
     access_token: str
@@ -102,6 +121,7 @@ class ShiftResponse(ShiftBase):
 
 # ----------------- Employee Schemas -----------------
 class EmployeeBase(BaseModel):
+    group_id: Optional[str] = None
     registration_number: Optional[str] = None
     name: str
     cpf: str
@@ -277,12 +297,56 @@ class AuditLogResponse(BaseModel):
         orm_mode = True
 
 
+# ----------------- Supplier Schemas -----------------
+class SupplierBase(BaseModel):
+    corporate_name: str
+    trade_name: str
+    cnpj: str
+    state_inscription: Optional[str] = None
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    category: str
+    preferred_payment_method: Optional[str] = None
+    bank: Optional[str] = None
+    agency: Optional[str] = None
+    account: Optional[str] = None
+    pix_key: Optional[str] = None
+    payment_terms: Optional[str] = None
+    delivery_days: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class SupplierCreate(SupplierBase):
+    pass
+
+class SupplierResponse(SupplierBase):
+    id: str
+    group_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
 # ----------------- Financial Schemas -----------------
 class FinancialRevenueBase(BaseModel):
     description: str
     amount: float
     category: str
     date: date
+    expected_date: Optional[date] = None
+    received_date: Optional[date] = None
+    payment_method: Optional[str] = None
+    status: str = "A Receber"
+    client: Optional[str] = None
+    observations: Optional[str] = None
+    group_id: Optional[str] = None
 
 class FinancialRevenueCreate(FinancialRevenueBase):
     pass
@@ -290,6 +354,10 @@ class FinancialRevenueCreate(FinancialRevenueBase):
 class FinancialRevenueResponse(FinancialRevenueBase):
     id: str
     created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    change_history: Optional[str] = None
     reference_month: int
     reference_year: int
 
@@ -301,13 +369,27 @@ class FinancialExpenseBase(BaseModel):
     amount: float
     category: str
     date: date
+    supplier_id: Optional[str] = None
+    due_date: Optional[date] = None
+    payment_date: Optional[date] = None
+    payment_method: Optional[str] = None
+    status: str = "Pendente"
+    observations: Optional[str] = None
+    is_recurring: bool = False
+    recurrence_period: Optional[str] = None
+    group_id: Optional[str] = None
 
 class FinancialExpenseCreate(FinancialExpenseBase):
     pass
 
 class FinancialExpenseResponse(FinancialExpenseBase):
     id: str
+    supplier: Optional[SupplierResponse] = None
     created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    change_history: Optional[str] = None
     reference_month: int
     reference_year: int
 
@@ -331,6 +413,12 @@ class FinancialSummaryResponse(BaseModel):
     net_result: float
     margin_percentage: float
     previous_month_balance: Optional[float] = 0.0
+    cash_balance: Optional[float] = 0.0
+    pending_receivables: Optional[float] = 0.0
+    pending_payables: Optional[float] = 0.0
     category_revenues: Optional[Dict[str, float]] = None
     category_expenses: Optional[Dict[str, float]] = None
+    payment_methods_revenues: Optional[Dict[str, float]] = None
+    payment_methods_expenses: Optional[Dict[str, float]] = None
     monthly_breakdown: List[FinancialSummaryMonth]
+

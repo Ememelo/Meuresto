@@ -11,12 +11,16 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 @router.get("", response_model=List[AuditLogResponse])
 def get_audit_logs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     """
-    Retrieve all audit logs. Restricted to Administrator role.
+    Retrieve all audit logs. Restricted to Administrator/Admin Delegado roles.
     """
-    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+    query = db.query(AuditLog)
+    if current_user.role != "admin":
+        query = query.filter(AuditLog.group_id == current_user.group_id)
+        
+    logs = query.order_by(AuditLog.timestamp.desc()).all()
     
     # Resolve username for each log
     results = []

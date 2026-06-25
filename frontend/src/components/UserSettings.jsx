@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
-import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff, Database, Download, Upload, Smartphone, Wifi, Trash2 } from 'lucide-react'
+import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff, Database, Download, Upload, Smartphone, Wifi, Trash2, Edit2, PlusCircle } from 'lucide-react'
 
 const UserSettings = () => {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
-  const isSocioOrAdmin = user?.role === 'admin' || user?.role === 'socio'
+  const isAdminMaster = user?.role === 'admin'
+  const isAdminDelegado = user?.role === 'admin_delegado'
+  const canManageUsers = isAdminMaster || isAdminDelegado
+  const canBackup = isAdminMaster
 
   const [activeTab, setActiveTab] = useState('profile')
   const [localIp, setLocalIp] = useState('127.0.0.1')
@@ -31,16 +33,49 @@ const UserSettings = () => {
     username: '',
     email: '',
     password: '',
-    role: 'consulta'
+    role: 'consulta',
+    group_id: ''
   })
   const [showRegisterPwd, setShowRegisterPwd] = useState(false)
 
-  // User List State (Admin only)
+  // User List State
   const [usersList, setUsersList] = useState([])
   const [fetchingUsers, setFetchingUsers] = useState(false)
 
+  // Groups/Tenants State (Admin Master only)
+  const [activeGroups, setActiveGroups] = useState([])
+  const [groupsList, setGroupsList] = useState([])
+  const [fetchingGroups, setFetchingGroups] = useState(false)
+  const [groupForm, setGroupForm] = useState({
+    id: null,
+    name: '',
+    is_active: true
+  })
+
+  const fetchActiveGroups = async () => {
+    try {
+      const res = await api.get('/groups/public')
+      setActiveGroups(res.data)
+    } catch (e) {
+      console.error("Erro ao buscar grupos ativos", e)
+    }
+  }
+
+  const fetchGroupsList = async () => {
+    if (!isAdminMaster) return
+    setFetchingGroups(true)
+    try {
+      const res = await api.get('/groups')
+      setGroupsList(res.data)
+    } catch (err) {
+      setError('Erro ao carregar lista de empresas.')
+    } finally {
+      setFetchingGroups(false)
+    }
+  }
+
   const fetchUsers = async () => {
-    if (!isAdmin) return
+    if (!canManageUsers) return
     setFetchingUsers(true)
     try {
       const res = await api.get('/auth/users')
@@ -53,8 +88,23 @@ const UserSettings = () => {
   }
 
   useEffect(() => {
-    if (activeTab === 'users' && isAdmin) {
+    // Both Admin Master and Admin Delegado can benefit from active groups for listing mapping,
+    // and Admin Master needs it for creating user dropdown.
+    fetchActiveGroups()
+  }, [])
+
+  useEffect(() => {
+    if (activeGroups.length > 0 && !registerForm.group_id) {
+      setRegisterForm(prev => ({ ...prev, group_id: activeGroups[0].id }))
+    }
+  }, [activeGroups])
+
+  useEffect(() => {
+    if (activeTab === 'users' && canManageUsers) {
       fetchUsers()
+    }
+    if (activeTab === 'groups' && isAdminMaster) {
+      fetchGroupsList()
     }
   }, [activeTab])
 
@@ -100,9 +150,19 @@ const UserSettings = () => {
 
     setLoading(true)
     try {
-      await api.post('/auth/register', registerForm)
+      const payload = { ...registerForm }
+      if (!isAdminMaster) {
+        delete payload.group_id
+      }
+      await api.post('/auth/register', payload)
       setSuccess(`Usuário "${registerForm.username}" registrado com sucesso!`)
-      setRegisterForm({ username: '', email: '', password: '', role: 'consulta' })
+      setRegisterForm({ 
+        username: '', 
+        email: '', 
+        password: '', 
+        role: 'consulta',
+        group_id: activeGroups[0]?.id || ''
+      })
       fetchUsers()
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao registrar novo usuário.')
@@ -120,7 +180,7 @@ const UserSettings = () => {
         // silent fail
       }
     }
-    if (activeTab === 'backup' && isSocioOrAdmin) {
+    if (activeTab === 'backup' && canBackup) {
       fetchLocalIp()
     }
   }, [activeTab])
@@ -221,6 +281,15 @@ const UserSettings = () => {
     }
   }
 
+  const handleUpdateUserGroup = async (userId, newGroupId) => {
+    try {
+      await api.put(`/auth/users/${userId}/group`, { group_id: newGroupId })
+      fetchUsers()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Erro ao transferir a empresa/grupo do usuário.')
+    }
+  }
+
   const handleToggleFinancialAccess = async (userId) => {
     try {
       await api.put(`/auth/users/${userId}/toggle-financial-access`)
@@ -242,9 +311,55 @@ const UserSettings = () => {
     }
   }
 
+  // Group Form submission
+  const handleGroupSubmit = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+    try {
+      if (groupForm.id) {
+        await api.put(`/groups/${groupForm.id}`, {
+          name: groupForm.name.trim(),
+          is_active: groupForm.is_active
+        })
+        setSuccess(`Empresa "${groupForm.name}" atualizada com sucesso!`)
+      } else {
+        await api.post('/groups', {
+          name: groupForm.name.trim(),
+          is_active: groupForm.is_active
+        })
+        setSuccess(`Empresa "${groupForm.name}" cadastrada com sucesso!`)
+      }
+      setGroupForm({ id: null, name: '', is_active: true })
+      fetchGroupsList()
+      fetchActiveGroups()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao salvar empresa.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteGroup = async (groupId, groupName) => {
+    if (window.confirm(`Tem certeza que deseja EXCLUIR permanentemente a empresa/grupo "${groupName}"?`)) {
+      setError(null)
+      setSuccess(null)
+      try {
+        await api.delete(`/groups/${groupId}`)
+        setSuccess(`Empresa "${groupName}" excluída com sucesso.`)
+        fetchGroupsList()
+        fetchActiveGroups()
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Erro ao excluir empresa.')
+      }
+    }
+  }
+
   const getRoleLabel = (role) => {
     const labels = {
-      admin: 'Administrador',
+      admin: 'Administrador Master',
+      admin_delegado: 'Admin Delegado',
       rh: 'Recursos Humanos',
       socio: 'Sócio-Diretor',
       gestor: 'Gestor de Área',
@@ -259,7 +374,7 @@ const UserSettings = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-800">Usuários & Acesso</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Gerencie suas credenciais de segurança e contas corporativas do Lira People Management.
+          Gerencie suas credenciais de segurança, contas corporativas e empresas do MeuRestô.
         </p>
       </div>
 
@@ -280,7 +395,21 @@ const UserSettings = () => {
             Minha Senha
           </button>
 
-          {isAdmin && (
+          {isAdminMaster && (
+            <button
+              onClick={() => { setActiveTab('groups'); setError(null); setSuccess(null); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer ${
+                activeTab === 'groups'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/10'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              Empresas & Grupos
+            </button>
+          )}
+
+          {canManageUsers && (
             <>
               <button
                 onClick={() => { setActiveTab('register'); setError(null); setSuccess(null); }}
@@ -308,7 +437,7 @@ const UserSettings = () => {
             </>
           )}
 
-          {isSocioOrAdmin && (
+          {canBackup && (
             <button
               onClick={() => { setActiveTab('backup'); setError(null); setSuccess(null); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer ${
@@ -427,8 +556,130 @@ const UserSettings = () => {
             </div>
           )}
 
-          {/* TAB 2: REGISTER USER (Admin only) */}
-          {activeTab === 'register' && isAdmin && (
+          {/* TAB: GROUP CRUD (Admin Master only) */}
+          {activeTab === 'groups' && isAdminMaster && (
+            <div className="space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-800">
+                  {groupForm.id ? 'Editar Empresa / Unidade' : 'Cadastrar Nova Empresa / Unidade'}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Crie novos grupos/inquilinos para isolamento multi-tenant dos dados do restaurante.
+                </p>
+              </div>
+
+              <form onSubmit={handleGroupSubmit} className="max-w-md space-y-4">
+                <div>
+                  <label className="form-label">Nome da Empresa / Grupo</label>
+                  <input
+                    type="text"
+                    value={groupForm.name}
+                    onChange={(e) => setGroupForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Ex: Unidade Centro, MeuRestô Jardins"
+                    className="form-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">Status da Unidade</label>
+                  <select
+                    value={groupForm.is_active ? 'true' : 'false'}
+                    onChange={(e) => setGroupForm(prev => ({ ...prev, is_active: e.target.value === 'true' }))}
+                    className="form-input cursor-pointer"
+                  >
+                    <option value="true">Ativo (Permite login e cadastro)</option>
+                    <option value="false">Desativado (Bloqueia logins vinculados)</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary flex-1 py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    {loading ? 'Salvando...' : groupForm.id ? 'Salvar Alterações' : 'Cadastrar Empresa'}
+                  </button>
+                  {groupForm.id && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupForm({ id: null, name: '', is_active: true })}
+                      className="px-4 py-2.5 bg-slate-150 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              {/* Groups List */}
+              <div className="pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Empresas & Unidades Cadastradas</h3>
+                {fetchingGroups ? (
+                  <div className="flex justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600"></div>
+                  </div>
+                ) : groupsList.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4">Nenhum grupo cadastrado.</p>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase">
+                          <th className="px-4 py-3">Nome do Grupo</th>
+                          <th className="px-4 py-3">Criado em</th>
+                          <th className="px-4 py-3 text-center">Status</th>
+                          <th className="px-4 py-3 text-center">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {groupsList.map((g) => (
+                          <tr key={g.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-bold text-slate-800">{g.name}</td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {g.created_at ? new Date(g.created_at).toLocaleDateString('pt-BR') : 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                g.is_active 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                  : 'bg-red-50 text-red-700 border border-red-100'
+                              }`}>
+                                {g.is_active ? 'Ativo' : 'Inativo'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => setGroupForm({ id: g.id, name: g.name, is_active: g.is_active })}
+                                  className="p-1.5 rounded text-amber-600 hover:text-amber-700 hover:bg-amber-50 cursor-pointer"
+                                  title="Editar"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGroup(g.id, g.name)}
+                                  className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: REGISTER USER */}
+          {activeTab === 'register' && canManageUsers && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-800">Cadastrar Novo Usuário</h2>
@@ -491,8 +742,25 @@ const UserSettings = () => {
                     <option value="gestor">Gestor de Área (Leitura + Lançamento de extras)</option>
                     <option value="socio">Sócio-Diretor (Leitura + Aprovações e Relatórios)</option>
                     <option value="rh">Recursos Humanos (Operação total, sem Auditoria)</option>
+                    <option value="admin_delegado">Admin Delegado (Gerenciador do Grupo)</option>
                   </select>
                 </div>
+
+                {isAdminMaster && (
+                  <div>
+                    <label className="form-label">Empresa / Grupo (Tenant)</label>
+                    <select
+                      value={registerForm.group_id}
+                      onChange={(e) => setRegisterForm(prev => ({ ...prev, group_id: e.target.value }))}
+                      className="form-input cursor-pointer"
+                      required
+                    >
+                      {activeGroups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <button
                   type="submit"
@@ -506,8 +774,8 @@ const UserSettings = () => {
             </div>
           )}
 
-          {/* TAB 3: MANAGE USERS (Admin only) */}
-          {activeTab === 'users' && isAdmin && (
+          {/* TAB 3: MANAGE USERS */}
+          {activeTab === 'users' && canManageUsers && (
             <div className="space-y-6 animate-fadeIn">
               <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
                 <div>
@@ -534,6 +802,7 @@ const UserSettings = () => {
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase">
                         <th className="px-4 py-3">Usuário</th>
+                        {isAdminMaster && <th className="px-4 py-3">Grupo/Empresa</th>}
                         <th className="px-4 py-3">E-mail</th>
                         <th className="px-4 py-3">Perfil de Acesso</th>
                         <th className="px-4 py-3 text-center">Acesso Financeiro</th>
@@ -544,6 +813,7 @@ const UserSettings = () => {
                     <tbody className="divide-y divide-slate-100">
                       {usersList.map((u) => {
                         const isSelf = u.username === user.username
+                        const groupName = activeGroups.find(g => g.id === u.group_id)?.name || 'Sem Grupo'
                         return (
                           <tr key={u.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3 font-bold text-slate-800 flex items-center gap-2">
@@ -559,6 +829,23 @@ const UserSettings = () => {
                                 </span>
                               )}
                             </td>
+                            {isAdminMaster && (
+                              <td className="px-4 py-3 font-semibold text-slate-700">
+                                {isSelf || u.role === 'admin' ? (
+                                  <span className="text-slate-500">{groupName}</span>
+                                ) : (
+                                  <select
+                                    value={u.group_id || ''}
+                                    onChange={(e) => handleUpdateUserGroup(u.id, e.target.value)}
+                                    className="px-2 py-1 bg-slate-950 border border-slate-800 rounded text-slate-100 text-[10px] focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold cursor-pointer"
+                                  >
+                                    {activeGroups.map((g) => (
+                                      <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </td>
+                            )}
                             <td className="px-4 py-3 text-slate-500">{u.email}</td>
                             <td className="px-4 py-3 font-semibold text-slate-700">
                               {isSelf || u.role === 'admin' ? (
@@ -567,6 +854,7 @@ const UserSettings = () => {
                                   u.role === 'rh' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
                                   u.role === 'socio' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
                                   u.role === 'gestor' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                  u.role === 'admin_delegado' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
                                   'bg-slate-50 text-slate-700 border border-slate-100'
                                 }`}>
                                   {getRoleLabel(u.role)}
@@ -581,6 +869,7 @@ const UserSettings = () => {
                                   <option value="rh">Recursos Humanos</option>
                                   <option value="gestor">Gestor de Área</option>
                                   <option value="consulta">Leitura/Consulta</option>
+                                  <option value="admin_delegado">Admin Delegado</option>
                                 </select>
                               )}
                             </td>
@@ -627,13 +916,15 @@ const UserSettings = () => {
                                     >
                                       <Power className="w-4 h-4" />
                                     </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(u)}
-                                      className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 transition-all cursor-pointer"
-                                      title="Excluir Conta"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    {isAdminMaster && (
+                                      <button
+                                        onClick={() => handleDeleteUser(u)}
+                                        className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 transition-all cursor-pointer"
+                                        title="Excluir Conta"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   </>
                                 ) : (
                                   !isSelf && <span className="w-7 text-center text-slate-300 font-semibold text-[10px]">-</span>
@@ -651,7 +942,7 @@ const UserSettings = () => {
           )}
 
           {/* TAB 4: BACKUP & MOBILE CONNECTION */}
-          {activeTab === 'backup' && isSocioOrAdmin && (
+          {activeTab === 'backup' && canBackup && (
             <div className="space-y-8 animate-fadeIn">
               {/* Backup Section */}
               <div className="space-y-6">
@@ -670,7 +961,7 @@ const UserSettings = () => {
                   <div className="bg-slate-50 p-6 rounded-xl border border-slate-200/60 flex flex-col justify-between space-y-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">Exportar Banco de Dados</h3>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      <p className="text-xs text-slate-550 mt-1 leading-relaxed">
                         Faça o download do banco de dados completo (`lira_rh.db`). Salve este arquivo em um pendrive ou e-mail para segurança.
                       </p>
                     </div>
@@ -726,7 +1017,7 @@ const UserSettings = () => {
                     </div>
                     <div className="space-y-1.5">
                       <h3 className="text-sm font-bold text-slate-800">Conecte via Rede Wi-Fi Local</h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-550 leading-relaxed">
                         1. Certifique-se de que o seu celular e este computador estejam conectados na **mesma rede Wi-Fi**.<br />
                         2. No navegador do seu celular, digite o seguinte endereço IP:
                       </p>
@@ -753,4 +1044,3 @@ const UserSettings = () => {
 }
 
 export default UserSettings
-

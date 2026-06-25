@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { UtensilsCrossed, Lock, User, AlertCircle, Mail, Shield, CheckCircle } from 'lucide-react'
 import api from '../utils/api'
@@ -13,6 +13,8 @@ const Login = () => {
   const [role, setRole] = useState('socio')
   const [localLoading, setLocalLoading] = useState(false)
   const [signupSuccess, setSignupSuccess] = useState('')
+  const [groups, setGroups] = useState([])
+  const [groupId, setGroupId] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -54,13 +56,18 @@ const Login = () => {
         setError('Por favor, insira um e-mail com formato válido (exemplo@dominio.com).')
         return
       }
+      if (!groupId) {
+        setError('Por favor, selecione uma empresa / grupo.')
+        return
+      }
       setLocalLoading(true)
       try {
         await api.post('/auth/signup', {
           username: username.trim(),
           email: email.trim(),
           password,
-          role
+          role,
+          group_id: groupId
         })
         setSignupSuccess('Cadastro realizado com sucesso! Faça login abaixo.')
         setIsSignUp(false)
@@ -80,6 +87,23 @@ const Login = () => {
       setLocalLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (isSignUp) {
+      const fetchGroups = async () => {
+        try {
+          const res = await api.get('/groups/public')
+          setGroups(res.data)
+          if (res.data.length > 0) {
+            setGroupId(res.data[0].id)
+          }
+        } catch (err) {
+          console.error("Erro ao buscar grupos públicos", err)
+        }
+      }
+      fetchGroups()
+    }
+  }, [isSignUp])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-slate-950 px-4">
@@ -159,26 +183,53 @@ const Login = () => {
           )}
 
           {isSignUp && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-widest mb-1.5">
-                Perfil de Acesso
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
-                  <Shield className="w-4 h-4" />
-                </span>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all cursor-pointer"
-                >
-                  <option value="socio">Sócio-Diretor (Acesso Total + Financeiro)</option>
-                  <option value="rh">Recursos Humanos (RH)</option>
-                  <option value="gestor">Gestor de Equipe</option>
-                  <option value="consulta">Somente Leitura</option>
-                </select>
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-widest mb-1.5">
+                  Perfil de Acesso
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <Shield className="w-4 h-4" />
+                  </span>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all cursor-pointer"
+                  >
+                    <option value="socio">Sócio-Diretor (Acesso Total + Financeiro)</option>
+                    <option value="rh">Recursos Humanos (RH)</option>
+                    <option value="gestor">Gestor de Equipe</option>
+                    <option value="consulta">Somente Leitura</option>
+                  </select>
+                </div>
               </div>
-            </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-widest mb-1.5">
+                  Empresa / Grupo
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
+                    <Shield className="w-4 h-4" />
+                  </span>
+                  <select
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all cursor-pointer"
+                    required
+                  >
+                    {groups.length === 0 ? (
+                      <option value="">Carregando empresas...</option>
+                    ) : (
+                      groups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </>
           )}
 
           {!isForgotPassword && (

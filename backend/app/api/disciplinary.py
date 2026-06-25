@@ -11,15 +11,15 @@ router = APIRouter(tags=["disciplinary_and_leaves"])
 
 # ----------------- Disciplinary Endpoints -----------------
 
+from app.api.employees import check_employee_group
+
 @router.post("/disciplinary", response_model=DisciplinaryActionResponse)
 def create_disciplinary_action(
     action_in: DisciplinaryActionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == action_in.employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    emp = check_employee_group(db, action_in.employee_id, current_user)
         
     db_action = DisciplinaryAction(
         employee_id=action_in.employee_id,
@@ -67,9 +67,7 @@ def get_employee_disciplinary_actions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    check_employee_group(db, employee_id, current_user)
     return db.query(DisciplinaryAction).filter(DisciplinaryAction.employee_id == employee_id).all()
 
 
@@ -79,11 +77,9 @@ def get_employee_disciplinary_actions(
 def create_leave(
     leave_in: LeaveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == leave_in.employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    emp = check_employee_group(db, leave_in.employee_id, current_user)
         
     db_leave = Leave(
         employee_id=leave_in.employee_id,
@@ -127,18 +123,19 @@ def get_employee_leaves(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    check_employee_group(db, employee_id, current_user)
     return db.query(Leave).filter(Leave.employee_id == employee_id).all()
 
 @router.delete("/disciplinary/{action_id}")
 def delete_disciplinary_action(
     action_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    action = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id, Employee.user_id == current_user.id).first()
+    query = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    action = query.first()
     if not action:
         raise HTTPException(status_code=404, detail="Ocorrência não encontrada.")
     db.delete(action)
@@ -150,9 +147,12 @@ def delete_disciplinary_action(
 def delete_leave(
     leave_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    leave = db.query(Leave).join(Employee).filter(Leave.id == leave_id, Employee.user_id == current_user.id).first()
+    query = db.query(Leave).join(Employee).filter(Leave.id == leave_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    leave = query.first()
     if not leave:
         raise HTTPException(status_code=404, detail="Afastamento não encontrado.")
     db.delete(leave)
@@ -165,9 +165,12 @@ def update_disciplinary_action(
     action_id: str,
     action_in: DisciplinaryActionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    action = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id, Employee.user_id == current_user.id).first()
+    query = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    action = query.first()
     if not action:
         raise HTTPException(status_code=404, detail="Ocorrência não encontrada.")
     action.type = action_in.type
@@ -186,9 +189,12 @@ def update_leave(
     leave_id: str,
     leave_in: LeaveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    leave = db.query(Leave).join(Employee).filter(Leave.id == leave_id, Employee.user_id == current_user.id).first()
+    query = db.query(Leave).join(Employee).filter(Leave.id == leave_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    leave = query.first()
     if not leave:
         raise HTTPException(status_code=404, detail="Afastamento não encontrado.")
     leave.start_date = leave_in.start_date

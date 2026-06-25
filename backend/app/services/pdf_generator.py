@@ -210,3 +210,152 @@ def generate_employee_ficha_pdf(emp: Employee) -> io.BytesIO:
     doc.build(story)
     buffer.seek(0)
     return buffer
+
+
+def generate_financial_pdf(flow_items: list, filters_summary: str) -> io.BytesIO:
+    """
+    Generates a professional PDF financial report.
+    """
+    import io
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    PRIMARY_COLOR = colors.HexColor("#0f172a")
+    SECONDARY_COLOR = colors.HexColor("#d97706")
+    TEXT_COLOR = colors.HexColor("#334155")
+    
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        textColor=PRIMARY_COLOR,
+        spaceAfter=4
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'DocSubtitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=9,
+        textColor=SECONDARY_COLOR,
+        spaceAfter=15
+    )
+    
+    label_style = ParagraphStyle(
+        'HeaderLabel',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        textColor=colors.white
+    )
+    
+    value_style = ParagraphStyle(
+        'TableValue',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        textColor=TEXT_COLOR
+    )
+
+    value_style_center = ParagraphStyle(
+        'TableValueCenter',
+        parent=value_style,
+        alignment=1 # Center
+    )
+
+    value_style_right = ParagraphStyle(
+        'TableValueRight',
+        parent=value_style,
+        alignment=2 # Right
+    )
+
+    story.append(Paragraph("MEURESTÔ ERP - RELATÓRIO FINANCEIRO", title_style))
+    story.append(Paragraph(f"Filtros: {filters_summary}", subtitle_style))
+    story.append(Spacer(1, 10))
+    
+    # Financial Summary stats first
+    total_rev = sum(item[5] for item in flow_items if item[1] == "RECEITA" and item[7].lower() == "recebido")
+    total_exp = sum(item[5] for item in flow_items if item[1] == "DESPESA" and item[7].lower() == "pago")
+    net_result = total_rev - total_exp
+    
+    summary_data = [
+        [
+            Paragraph("<b>Total Recebido</b>", ParagraphStyle('L1', parent=value_style, fontSize=9)),
+            Paragraph("<b>Total Pago</b>", ParagraphStyle('L2', parent=value_style, fontSize=9)),
+            Paragraph("<b>Resultado Caixa</b>", ParagraphStyle('L3', parent=value_style, fontSize=9))
+        ],
+        [
+            Paragraph(f"R$ {total_rev:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), ParagraphStyle('V1', parent=value_style, fontSize=10, textColor=colors.HexColor("#16a34a"))),
+            Paragraph(f"R$ {total_exp:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), ParagraphStyle('V2', parent=value_style, fontSize=10, textColor=colors.HexColor("#dc2626"))),
+            Paragraph(f"R$ {net_result:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), ParagraphStyle('V3', parent=value_style, fontSize=10, textColor=PRIMARY_COLOR))
+        ]
+    ]
+    t_summary = Table(summary_data, colWidths=[174, 174, 174])
+    t_summary.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('PADDING', (0,0), (-1,-1), 8),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    story.append(t_summary)
+    story.append(Spacer(1, 15))
+    
+    # Detailed Flow Table
+    table_rows = [
+        [
+            Paragraph("Data", label_style),
+            Paragraph("Tipo", label_style),
+            Paragraph("Descrição", label_style),
+            Paragraph("Parceiro", label_style),
+            Paragraph("Categoria", label_style),
+            Paragraph("Valor", label_style),
+            Paragraph("Status", label_style)
+        ]
+    ]
+    
+    for item in flow_items:
+        date_str = item[0].strftime("%d/%m/%Y") if item[0] else ""
+        type_str = item[1]
+        desc = item[2]
+        partner = item[3]
+        cat = item[4]
+        val_str = f"R$ {item[5]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        status_str = item[7].upper()
+        
+        table_rows.append([
+            Paragraph(date_str, value_style_center),
+            Paragraph(type_str, value_style_center),
+            Paragraph(desc, value_style),
+            Paragraph(partner, value_style),
+            Paragraph(cat, value_style),
+            Paragraph(val_str, value_style_right),
+            Paragraph(status_str, value_style_center)
+        ])
+        
+    t_flow = Table(table_rows, colWidths=[55, 45, 120, 110, 80, 60, 52])
+    t_flow.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_COLOR),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(t_flow)
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+

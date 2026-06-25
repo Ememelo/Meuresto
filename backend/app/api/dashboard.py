@@ -62,7 +62,10 @@ def get_dashboard_data(
         return leave is not None
 
     if employee_id:
-        emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+        emp_query = db.query(Employee).filter(Employee.id == employee_id)
+        if current_user.role != "admin":
+            emp_query = emp_query.filter(Employee.group_id == current_user.group_id)
+        emp = emp_query.first()
         if not emp:
             return {"error": "Colaborador não encontrado."}
             
@@ -130,7 +133,10 @@ def get_dashboard_data(
         }
         
     # General metrics calculation
-    all_employees = db.query(Employee).filter(Employee.user_id == current_user.id).all()
+    query_emp = db.query(Employee)
+    if current_user.role != "admin":
+        query_emp = query_emp.filter(Employee.group_id == current_user.group_id)
+    all_employees = query_emp.all()
     
     active_in_period = []
     on_leave_in_period = []
@@ -162,37 +168,43 @@ def get_dashboard_data(
     if year != today.year or month is not None:
         total_terminated = len(terminated_in_period)
     else:
-        total_terminated = db.query(func.count(Employee.id)).filter(
-            Employee.user_id == current_user.id,
-            Employee.status == "terminated"
-        ).scalar() or 0
+        query_term = db.query(func.count(Employee.id)).filter(Employee.status == "terminated")
+        if current_user.role != "admin":
+            query_term = query_term.filter(Employee.group_id == current_user.group_id)
+        total_terminated = query_term.scalar() or 0
     
     salaries = [emp.contract.base_salary for emp in active_in_period if emp.contract]
     average_salary = round(sum(salaries) / len(salaries), 2) if salaries else 0.0
     
-    warnings_count = db.query(func.count(DisciplinaryAction.id)).join(Employee).filter(
-        Employee.user_id == current_user.id,
+    warnings_query = db.query(func.count(DisciplinaryAction.id)).join(Employee).filter(
         DisciplinaryAction.type == "warning",
         DisciplinaryAction.action_date >= period_start,
         DisciplinaryAction.action_date <= period_end
-    ).scalar() or 0
+    )
+    if current_user.role != "admin":
+        warnings_query = warnings_query.filter(Employee.group_id == current_user.group_id)
+    warnings_count = warnings_query.scalar() or 0
     
-    suspensions_count = db.query(func.count(DisciplinaryAction.id)).join(Employee).filter(
-        Employee.user_id == current_user.id,
+    suspensions_query = db.query(func.count(DisciplinaryAction.id)).join(Employee).filter(
         DisciplinaryAction.type == "suspension",
         DisciplinaryAction.action_date >= period_start,
         DisciplinaryAction.action_date <= period_end
-    ).scalar() or 0
+    )
+    if current_user.role != "admin":
+        suspensions_query = suspensions_query.filter(Employee.group_id == current_user.group_id)
+    suspensions_count = suspensions_query.scalar() or 0
     
     total_disciplinary = warnings_count + suspensions_count
     
-    total_ot_minutes = db.query(func.sum(
+    total_ot_query = db.query(func.sum(
         Overtime.hours_50_minutes + Overtime.hours_100_minutes + Overtime.hours_night_minutes
     )).join(Employee).filter(
-        Employee.user_id == current_user.id,
         Overtime.date >= period_start,
         Overtime.date <= period_end
-    ).scalar() or 0
+    )
+    if current_user.role != "admin":
+        total_ot_query = total_ot_query.filter(Employee.group_id == current_user.group_id)
+    total_ot_minutes = total_ot_query.scalar() or 0
     total_ot_hours = round(total_ot_minutes / 60.0, 1)
     
     birthdays = []
@@ -224,7 +236,6 @@ def get_dashboard_data(
     
     if db.bind.name == "sqlite":
         admissions_query = db.query(func.count(Contract.id)).join(Employee).filter(
-            Employee.user_id == current_user.id,
             func.strftime("%Y", Contract.admission_date) == str(year)
         )
         if month is not None:
@@ -233,13 +244,15 @@ def get_dashboard_data(
             )
     else:
         admissions_query = db.query(func.count(Contract.id)).join(Employee).filter(
-            Employee.user_id == current_user.id,
             func.extract("year", Contract.admission_date) == year
         )
         if month is not None:
             admissions_query = admissions_query.filter(
                 func.extract("month", Contract.admission_date) == month
             )
+            
+    if current_user.role != "admin":
+        admissions_query = admissions_query.filter(Employee.group_id == current_user.group_id)
             
     admissions_year = admissions_query.scalar() or 0
     

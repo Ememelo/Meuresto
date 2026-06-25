@@ -17,25 +17,36 @@ import {
   WifiOff, 
   Calendar,
   X,
-  Users
+  Users,
+  Briefcase,
+  Layers,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle,
+  Truck,
+  FileText
 } from 'lucide-react'
 
 const Financial = () => {
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1 // 1-indexed
 
-  // Filters
+  // Filters and Sub-Tabs
+  const [subTab, setSubTab] = useState('dashboard') // dashboard, revenues, payments, suppliers, reports
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth) // null means full year
-  
-  // Data
+
+  // Data State
   const [summary, setSummary] = useState(null)
   const [revenues, setRevenues] = useState([])
   const [expenses, setExpenses] = useState([])
-  
-  // App States
+  const [suppliers, setSuppliers] = useState([])
+
+  // Loading & App States
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
   const [isOfflineState, setIsOfflineState] = useState(!isOnline())
   const [syncQueueCount, setSyncQueueCount] = useState(getSyncQueue().length)
   const [syncing, setSyncing] = useState(false)
@@ -43,15 +54,104 @@ const Financial = () => {
   // Modals
   const [showRevModal, setShowRevModal] = useState(false)
   const [showExpModal, setShowExpModal] = useState(false)
-  const [editingItem, setEditingItem] = useState(null) // { type: 'revenue'|'expense', id, description, amount, category, date }
+  const [showSuppModal, setShowSuppModal] = useState(false)
   
-  // Form states
-  const [formDesc, setFormDesc] = useState('')
-  const [formAmount, setFormAmount] = useState('')
-  const [formCategory, setFormCategory] = useState('')
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0])
+  // Edit items
+  const [editingItem, setEditingItem] = useState(null) // { type: 'revenue'|'expense'|'supplier', id, ... }
 
-  // Syncing status
+  // Revenue Form
+  const [revForm, setRevForm] = useState({
+    description: '',
+    amount: '',
+    category: 'Vendas',
+    date: new Date().toISOString().split('T')[0],
+    expected_date: new Date().toISOString().split('T')[0],
+    received_date: '',
+    payment_method: 'PIX',
+    status: 'A Receber',
+    client: '',
+    observations: ''
+  })
+
+  // Expense Form
+  const [expForm, setExpForm] = useState({
+    description: '',
+    amount: '',
+    category: 'Compras: Carnes',
+    date: new Date().toISOString().split('T')[0],
+    due_date: new Date().toISOString().split('T')[0],
+    payment_date: '',
+    payment_method: 'PIX',
+    status: 'Pendente',
+    supplier_id: '',
+    observations: '',
+    is_recurring: false,
+    recurrence_period: 'mensal'
+  })
+
+  // Supplier Form
+  const [suppForm, setSuppForm] = useState({
+    corporate_name: '',
+    trade_name: '',
+    cnpj: '',
+    state_inscription: '',
+    contact_person: '',
+    phone: '',
+    whatsapp: '',
+    email: '',
+    address: '',
+    category: 'Carnes',
+    preferred_payment_method: 'PIX',
+    bank: '',
+    agency: '',
+    account: '',
+    pix_key: '',
+    payment_terms: '30 dias',
+    delivery_days: 'Segunda-feira',
+    notes: '',
+    is_active: true
+  })
+
+  // Reports Form
+  const [reportFilters, setReportFilters] = useState({
+    start_date: '',
+    end_date: '',
+    category: '',
+    supplier_id: '',
+    payment_method: '',
+    status: ''
+  })
+
+  // Grouped Categories for Expense Dropdown
+  const expenseCategoriesGrouped = {
+    "Compras": ["Compras: Carnes", "Compras: Hortifruti", "Compras: Bebidas", "Compras: Congelados", "Compras: Laticínios", "Compras: Embalagens", "Compras: Produtos de Limpeza", "Compras: Descartáveis"],
+    "Estrutura": ["Estrutura: Aluguel", "Estrutura: Condomínio", "Estrutura: IPTU", "Estrutura: Energia", "Estrutura: Água", "Estrutura: Gás", "Estrutura: Internet", "Estrutura: Telefonia"],
+    "Pessoas": ["Pessoas: Salários", "Pessoas: Vale Transporte", "Pessoas: Vale Alimentação", "Pessoas: Benefícios"],
+    "Financeiro": ["Financeiro: Impostos", "Financeiro: Taxas Bancárias", "Financeiro: Taxas de Cartão", "Financeiro: Aluguel de Maquininhas", "Financeiro: Juros", "Financeiro: Multas"],
+    "Tecnologia": ["Tecnologia: Sistema ERP", "Tecnologia: Licenças", "Tecnologia: Hospedagem", "Tecnologia: Domínio", "Tecnologia: Equipamentos"],
+    "Manutenção": ["Manutenção: Equipamentos", "Manutenção: Ar Condicionado", "Manutenção: Freezers", "Manutenção: Geladeiras", "Manutenção: Informática", "Manutenção: Manutenção Predial"],
+    "Marketing": ["Marketing: Redes Sociais", "Marketing: Publicidade", "Marketing: Campanhas"],
+    "Outros": ["Outros"]
+  }
+
+  // Flattened category arrays
+  const expenseCategoriesFlat = Object.values(expenseCategoriesGrouped).flat()
+  const supplierCategories = [
+    'Carnes', 'Hortifruti', 'Bebidas', 'Congelados', 'Laticínios', 'Limpeza', 
+    'Embalagens', 'Descartáveis', 'Equipamentos', 'Tecnologia', 'Marketing', 
+    'Manutenção', 'Outros'
+  ]
+
+  const revenueCategories = [
+    'Vendas', 'Delivery', 'Eventos', 'iFood', 'Uber Eats', 'Outros'
+  ]
+
+  const paymentMethods = [
+    'PIX', 'Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 
+    'Transferência Bancária', 'TED', 'DOC', 'Boleto', 'Cheque', 'Débito Automático'
+  ]
+
+  // Setup connection monitoring
   useEffect(() => {
     const handleConnectionChange = () => {
       const online = isOnline()
@@ -76,7 +176,6 @@ const Financial = () => {
     }
   }, [])
 
-  // Auto-sync when coming online
   const handleAutoSync = async () => {
     if (getSyncQueue().length > 0) {
       setSyncing(true)
@@ -88,7 +187,6 @@ const Financial = () => {
     }
   }
 
-  // Manual Sync Button
   const triggerManualSync = async () => {
     if (syncing) return
     setSyncing(true)
@@ -101,12 +199,12 @@ const Financial = () => {
     }
   }
 
-  // Load data
+  // Fetch Financial Data
   const fetchFinancialData = async () => {
     setLoading(true)
     setError(null)
     try {
-      // 1. Get summary
+      // 1. Fetch Summary
       let summaryUrl = `/financial/summary?year=${year}`
       if (month !== null) {
         summaryUrl += `&month=${month}`
@@ -114,21 +212,24 @@ const Financial = () => {
       const summaryRes = await api.get(summaryUrl)
       setSummary(summaryRes.data)
 
-      // 2. Get list of records for monthly view
-      if (month !== null) {
-        const revsRes = await api.get(`/financial/revenues?year=${year}&month=${month}`)
-        setRevenues(revsRes.data)
+      // 2. Fetch Revenues, Expenses, Suppliers
+      const revsRes = await api.get(`/financial/revenues${month !== null ? `?year=${year}&month=${month}` : `?year=${year}`}`)
+      setRevenues(revsRes.data)
 
-        const expsRes = await api.get(`/financial/expenses?year=${year}&month=${month}`)
-        setExpenses(expsRes.data)
-      } else {
-        setRevenues([])
-        setExpenses([])
+      const expsRes = await api.get(`/financial/expenses${month !== null ? `?year=${year}&month=${month}` : `?year=${year}`}`)
+      setExpenses(expsRes.data)
+
+      const suppRes = await api.get('/suppliers')
+      setSuppliers(suppRes.data)
+
+      // Set default supplier in form if empty
+      if (suppRes.data.length > 0 && !expForm.supplier_id) {
+        setExpForm(prev => ({ ...prev, supplier_id: suppRes.data[0].id }))
       }
       setLoading(false)
     } catch (err) {
       console.error(err)
-      setError('Erro ao carregar dados financeiros. Carregando do cache se disponível.')
+      setError('Erro ao carregar dados financeiros. Exibindo dados em cache.')
       setLoading(false)
     }
   }
@@ -137,93 +238,330 @@ const Financial = () => {
     fetchFinancialData()
   }, [year, month])
 
-  // Open Add/Edit Modal
-  const openModal = (type, item = null) => {
-    if (item) {
-      setEditingItem({ ...item, type })
-      setFormDesc(item.description)
-      setFormAmount(item.amount.toString())
-      setFormCategory(item.category)
-      setFormDate(item.date)
-    } else {
-      setEditingItem(null)
-      setFormDesc('')
-      setFormAmount('')
-      setFormCategory(type === 'revenue' ? 'Vendas' : 'Compras/Insumos')
-      setFormDate(new Date().toISOString().split('T')[0])
-    }
-
-    if (type === 'revenue') {
-      setShowRevModal(true)
-    } else {
-      setShowExpModal(true)
-    }
+  // Helpers
+  const formatCurrency = (val) => {
+    return (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  // Save Revenue
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A'
+    const [year, month, day] = dateStr.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  const getStatusBadgeClass = (status) => {
+    const s = status?.toLowerCase()
+    if (s === 'recebido' || s === 'pago') return 'bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold'
+    if (s === 'a receber' || s === 'pendente') return 'bg-amber-100 border border-amber-300 text-amber-800 font-bold'
+    return 'bg-rose-100 border border-rose-300 text-rose-800 font-bold'
+  }
+
+  // Open Add/Edit Modals
+  const openRevModal = (item = null) => {
+    if (item) {
+      setEditingItem(item)
+      setRevForm({
+        description: item.description,
+        amount: item.amount.toString(),
+        category: item.category,
+        date: item.date,
+        expected_date: item.expected_date || item.date,
+        received_date: item.received_date || '',
+        payment_method: item.payment_method || 'PIX',
+        status: item.status,
+        client: item.client || '',
+        observations: item.observations || ''
+      })
+    } else {
+      setEditingItem(null)
+      setRevForm({
+        description: '',
+        amount: '',
+        category: 'Vendas',
+        date: new Date().toISOString().split('T')[0],
+        expected_date: new Date().toISOString().split('T')[0],
+        received_date: '',
+        payment_method: 'PIX',
+        status: 'A Receber',
+        client: '',
+        observations: ''
+      })
+    }
+    setShowRevModal(true)
+  }
+
+  const openExpModal = (item = null) => {
+    if (item) {
+      setEditingItem(item)
+      setExpForm({
+        description: item.description,
+        amount: item.amount.toString(),
+        category: item.category,
+        date: item.date,
+        due_date: item.due_date || item.date,
+        payment_date: item.payment_date || '',
+        payment_method: item.payment_method || 'PIX',
+        status: item.status,
+        supplier_id: item.supplier_id || (suppliers[0]?.id || ''),
+        observations: item.observations || '',
+        is_recurring: item.is_recurring,
+        recurrence_period: item.recurrence_period || 'mensal'
+      })
+    } else {
+      setEditingItem(null)
+      setExpForm({
+        description: '',
+        amount: '',
+        category: 'Compras: Carnes',
+        date: new Date().toISOString().split('T')[0],
+        due_date: new Date().toISOString().split('T')[0],
+        payment_date: '',
+        payment_method: 'PIX',
+        status: 'Pendente',
+        supplier_id: suppliers[0]?.id || '',
+        observations: '',
+        is_recurring: false,
+        recurrence_period: 'mensal'
+      })
+    }
+    setShowExpModal(true)
+  }
+
+  const openSuppModal = (item = null) => {
+    if (item) {
+      setEditingItem(item)
+      setSuppForm({
+        corporate_name: item.corporate_name,
+        trade_name: item.trade_name,
+        cnpj: item.cnpj,
+        state_inscription: item.state_inscription || '',
+        contact_person: item.contact_person || '',
+        phone: item.phone || '',
+        whatsapp: item.whatsapp || '',
+        email: item.email || '',
+        address: item.address || '',
+        category: item.category,
+        preferred_payment_method: item.preferred_payment_method || 'PIX',
+        bank: item.bank || '',
+        agency: item.agency || '',
+        account: item.account || '',
+        pix_key: item.pix_key || '',
+        payment_terms: item.payment_terms || '30 dias',
+        delivery_days: item.delivery_days || '',
+        notes: item.notes || '',
+        is_active: item.is_active
+      })
+    } else {
+      setEditingItem(null)
+      setSuppForm({
+        corporate_name: '',
+        trade_name: '',
+        cnpj: '',
+        state_inscription: '',
+        contact_person: '',
+        phone: '',
+        whatsapp: '',
+        email: '',
+        address: '',
+        category: 'Carnes',
+        preferred_payment_method: 'PIX',
+        bank: '',
+        agency: '',
+        account: '',
+        pix_key: '',
+        payment_terms: '30 dias',
+        delivery_days: '',
+        notes: '',
+        is_active: true
+      })
+    }
+    setShowSuppModal(true)
+  }
+
+  // Save Handlers
   const handleSaveRevenue = async (e) => {
     e.preventDefault()
     const payload = {
-      description: formDesc,
-      amount: parseFloat(formAmount),
-      category: formCategory,
-      date: formDate
+      ...revForm,
+      amount: parseFloat(revForm.amount),
+      received_date: revForm.status === 'Recebido' ? (revForm.received_date || revForm.date) : null
     }
-
     try {
       if (editingItem) {
         await api.put(`/financial/revenues/${editingItem.id}`, payload)
+        setSuccess('Lançamento de recebimento atualizado com sucesso!')
       } else {
         await api.post('/financial/revenues', payload)
+        setSuccess('Lançamento de recebimento adicionado com sucesso!')
       }
       setShowRevModal(false)
       fetchFinancialData()
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
       console.error(err)
+      setError('Erro ao salvar recebimento.')
     }
   }
 
-  // Save Expense
   const handleSaveExpense = async (e) => {
     e.preventDefault()
     const payload = {
-      description: formDesc,
-      amount: parseFloat(formAmount),
-      category: formCategory,
-      date: formDate
+      ...expForm,
+      amount: parseFloat(expForm.amount),
+      payment_date: expForm.status === 'Pago' ? (expForm.payment_date || expForm.date) : null,
+      recurrence_period: expForm.is_recurring ? expForm.recurrence_period : null
     }
-
     try {
       if (editingItem) {
         await api.put(`/financial/expenses/${editingItem.id}`, payload)
+        setSuccess('Lançamento de pagamento atualizado com sucesso!')
       } else {
         await api.post('/financial/expenses', payload)
+        setSuccess('Lançamento de pagamento adicionado com sucesso!')
       }
       setShowExpModal(false)
       fetchFinancialData()
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
       console.error(err)
+      setError('Erro ao salvar pagamento.')
     }
   }
 
-  // Delete item
-  const handleDeleteItem = async (type, id) => {
-    if (!confirm('Tem certeza de que deseja excluir este lançamento?')) return
+  const handleSaveSupplier = async (e) => {
+    e.preventDefault()
     try {
-      if (type === 'revenue') {
-        await api.delete(`/financial/revenues/${id}`)
+      if (editingItem) {
+        await api.put(`/suppliers/${editingItem.id}`, suppForm)
+        setSuccess('Fornecedor atualizado com sucesso!')
       } else {
-        await api.delete(`/financial/expenses/${id}`)
+        await api.post('/suppliers', suppForm)
+        setSuccess('Fornecedor cadastrado com sucesso!')
       }
+      setShowSuppModal(false)
       fetchFinancialData()
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
       console.error(err)
+      setError(err.response?.data?.detail || 'Erro ao salvar fornecedor.')
     }
   }
 
-  // Helpers
-  const formatCurrency = (value) => {
-    return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  // Deletion / Cancellation Handlers
+  const handleDeleteItem = async (type, item) => {
+    const isClosed = item.status === 'Recebido' || item.status === 'Pago' || item.status === 'Cancelado'
+    if (isClosed) {
+      // Prompt to cancel since deletion of paid/received elements is blocked
+      if (!confirm('Movimentações pagas ou recebidas não podem ser excluídas física/permanentemente para manter a integridade fiscal. Deseja CANCELAR este lançamento?')) return
+      
+      const payload = {
+        ...item,
+        status: 'Cancelado'
+      }
+      try {
+        if (type === 'revenue') {
+          await api.put(`/financial/revenues/${item.id}`, payload)
+        } else {
+          await api.put(`/financial/expenses/${item.id}`, payload)
+        }
+        setSuccess('Lançamento cancelado com sucesso!')
+        fetchFinancialData()
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        console.error(err)
+        setError('Erro ao cancelar lançamento.')
+      }
+    } else {
+      if (!confirm('Tem certeza de que deseja excluir permanentemente este lançamento pendente?')) return
+      try {
+        if (type === 'revenue') {
+          await api.delete(`/financial/revenues/${item.id}`)
+        } else {
+          await api.delete(`/financial/expenses/${item.id}`)
+        }
+        setSuccess('Lançamento excluído com sucesso!')
+        fetchFinancialData()
+        setTimeout(() => setSuccess(null), 3000)
+      } catch (err) {
+        console.error(err)
+        setError('Erro ao excluir lançamento.')
+      }
+    }
+  }
+
+  const handleDeleteSupplier = async (id) => {
+    if (!confirm('Deseja realmente excluir este fornecedor? Todos os lançamentos vinculados ficarão sem fornecedor associado.')) return
+    try {
+      await api.delete(`/suppliers/${id}`)
+      setSuccess('Fornecedor excluído com sucesso!')
+      fetchFinancialData()
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      console.error(err)
+      setError(err.response?.data?.detail || 'Erro ao excluir fornecedor.')
+    }
+  }
+
+  // Reports Generator Calls
+  const downloadReport = async (format) => {
+    let params = []
+    Object.entries(reportFilters).forEach(([k, v]) => {
+      if (v) params.push(`${k}=${v}`)
+    })
+    const queryStr = params.length > 0 ? `?${params.join('&')}` : ''
+    
+    try {
+      window.open(`/api/reports/financial/${format}${queryStr}`, '_blank')
+      setSuccess('Relatório exportado com sucesso!')
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err) {
+      setError('Erro ao baixar relatório.')
+    }
+  }
+
+  // Conic gradients calculation for Donuts
+  const renderDonutChart = (data, isExpenses = true) => {
+    const total = Object.values(data).reduce((a, b) => a + b, 0)
+    if (total === 0) {
+      return (
+        <div className="w-[180px] h-[180px] rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+          <p className="text-xs text-slate-400 font-bold">Sem dados</p>
+        </div>
+      )
+    }
+
+    let accum = 0
+    const palette = [
+      "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", 
+      "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"
+    ]
+    
+    const slices = Object.entries(data).map(([cat, val], idx) => {
+      const percentage = (val / total) * 100
+      const start = accum
+      accum += percentage
+      return `${palette[idx % palette.length]} ${start}% ${accum}%`
+    })
+
+    const donutStyle = {
+      background: `conic-gradient(${slices.join(', ')})`,
+      borderRadius: '50%',
+      width: '180px',
+      height: '180px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative'
+    }
+
+    return (
+      <div style={donutStyle} className="shadow-lg shadow-slate-900/10">
+        <div className="w-28 h-28 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Total</span>
+          <span className="text-xs font-black text-slate-800 mt-0.5">{formatCurrency(total)}</span>
+        </div>
+      </div>
+    )
   }
 
   const monthsList = [
@@ -249,13 +587,9 @@ const Financial = () => {
     )
   }
 
-  const netResult = summary?.net_result || 0
-  const isLoss = netResult < 0
-  const marginPercentage = summary?.margin_percentage || 0
-
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* Offline Alert Bar */}
+      {/* Sync Alerts */}
       {isOfflineState && (
         <div className="bg-amber-950/40 border border-amber-500/30 text-amber-300 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-amber-950/20">
           <div className="flex items-center gap-3">
@@ -273,744 +607,1158 @@ const Financial = () => {
         </div>
       )}
 
-      {/* Online Sync Pending Alert */}
       {!isOfflineState && syncQueueCount > 0 && (
         <div className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 p-4 rounded-xl flex items-center justify-between shadow-lg shadow-emerald-950/20">
           <div className="flex items-center gap-3">
             <Wifi className="w-5 h-5 shrink-0 text-emerald-400" />
             <div>
               <p className="text-sm font-bold">Conexão restaurada! {syncQueueCount} alterações pendentes.</p>
-              <p className="text-xs text-emerald-400/90 mt-0.5">Clique em Sincronizar para atualizar o banco de dados em nuvem.</p>
+              <p className="text-xs text-emerald-400/90 mt-0.5">Clique em Sincronizar para atualizar o banco de dados central.</p>
             </div>
           </div>
           <button 
             onClick={triggerManualSync}
             disabled={syncing}
-            className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-xs rounded-xl font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all"
+            className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-xs rounded-xl font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all animate-pulse"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Sincronizando...' : 'Sincronizar'}
-               </button>
+          </button>
         </div>
       )}
 
-      {/* Header and Controls */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-        <div className="space-y-2">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">
-              Controle Financeiro
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Gestão mensal e anual de entradas, saídas, salários e compras do MeuRestô.
-            </p>
-          </div>
-          {summary?.previous_month_balance !== undefined && (
-            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-bold uppercase tracking-wider">
-              <span className="px-2.5 py-1 bg-slate-100 text-slate-650 rounded-lg border border-slate-200">
-                Saldo Anterior: <span className={summary.previous_month_balance < 0 ? 'text-red-600' : 'text-slate-800'}>{formatCurrency(summary.previous_month_balance)}</span>
-              </span>
-              <span className="px-2.5 py-1 bg-amber-500/10 text-amber-700 rounded-lg border border-amber-500/20">
-                Saldo Acumulado: <span className={(summary.previous_month_balance + netResult) < 0 ? 'text-red-650' : 'text-emerald-700'}>{formatCurrency(summary.previous_month_balance + netResult)}</span>
-              </span>
-            </div>
-          )}
+      {/* Success/Error Alerts */}
+      {success && (
+        <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 p-4 rounded-xl flex items-center gap-3 shadow-md">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <p className="text-sm font-bold">{success}</p>
         </div>
+      )}
+      {error && (
+        <div className="bg-rose-100 border border-rose-300 text-rose-800 p-4 rounded-xl flex items-center gap-3 shadow-md">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <p className="text-sm font-bold">{error}</p>
+        </div>
+      )}
 
-        {/* Year & Month Picker */}
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Internal Navigation Sub-tabs */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-2">
+        <button 
+          onClick={() => setSubTab('dashboard')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+            subTab === 'dashboard' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+          }`}
+        >
+          Dashboard
+        </button>
+        <button 
+          onClick={() => setSubTab('revenues')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+            subTab === 'revenues' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+          }`}
+        >
+          Recebimentos
+        </button>
+        <button 
+          onClick={() => setSubTab('payments')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+            subTab === 'payments' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+          }`}
+        >
+          Pagamentos
+        </button>
+        <button 
+          onClick={() => setSubTab('suppliers')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+            subTab === 'suppliers' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+          }`}
+        >
+          Fornecedores
+        </button>
+        <button 
+          onClick={() => setSubTab('reports')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all cursor-pointer ${
+            subTab === 'reports' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+          }`}
+        >
+          Relatórios
+        </button>
+      </div>
+
+      {/* Date controls for Dashboard tab */}
+      {subTab === 'dashboard' && (
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-800 tracking-tight">Demonstrativo Financeiro</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Ano de referência e fechamento consolidado</p>
+          </div>
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-400" />
             <select
               value={year}
               onChange={(e) => setYear(parseInt(e.target.value))}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all cursor-pointer"
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs px-3 py-2 rounded-lg font-semibold focus:outline-none focus:border-amber-500"
             >
-              {Array.from({ length: 2040 - 2024 + 1 }, (_, i) => 2024 + i).map(y => (
+              {Array.from({ length: 17 }, (_, i) => 2024 + i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
-          </div>
-
-          <div className="h-6 w-[1px] bg-slate-200 hidden md:block"></div>
-
-          {/* Month selector Tabs */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center overflow-x-auto max-w-full gap-0.5 scrollbar-none">
-            <button
-              onClick={() => setMonth(null)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                month === null 
-                  ? 'bg-white text-slate-800 shadow-sm font-bold' 
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+            <select
+              value={month === null ? 'all' : month}
+              onChange={(e) => setMonth(e.target.value === 'all' ? null : parseInt(e.target.value))}
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs px-3 py-2 rounded-lg font-semibold focus:outline-none focus:border-amber-500"
             >
-              Ano Inteiro
-            </button>
-            {monthsList.map(m => (
-              <button
-                key={m.num}
-                onClick={() => setMonth(m.num)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  month === m.num 
-                    ? 'bg-white text-slate-800 shadow-sm font-bold' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {m.name}
-              </button>
-            ))}
+              <option value="all">Ano Inteiro / Total</option>
+              {monthsList.map(m => (
+                <option key={m.num} value={m.num}>{m.name}</option>
+              ))}
+            </select>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Receitas */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm border-l-4 border-l-emerald-500 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Receitas totais</p>
-            <h3 className="text-xl font-bold text-emerald-600">{formatCurrency(summary?.total_revenues)}</h3>
-          </div>
-          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Despesas Manuais */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm border-l-4 border-l-orange-500 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Despesas Operacionais</p>
-            <h3 className="text-xl font-bold text-orange-600">{formatCurrency(summary?.total_expenses)}</h3>
-          </div>
-          <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl text-orange-600">
-            <TrendingDown className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Salários (Folha) */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm border-l-4 border-l-purple-500 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Salários (Folha RH)</p>
-            <h3 className="text-xl font-bold text-purple-600">{formatCurrency(summary?.total_salaries)}</h3>
-          </div>
-          <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-purple-600">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Resultado */}
-        <div className={`bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm border-l-4 flex items-center justify-between ${
-          isLoss ? 'border-l-red-500' : 'border-l-teal-600'
-        }`}>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Resultado Líquido</p>
-            <h3 className={`text-xl font-bold ${isLoss ? 'text-red-600' : 'text-teal-600'}`}>
-              {formatCurrency(netResult)}
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Margem: {marginPercentage}%</p>
-          </div>
-          <div className={`p-3 rounded-xl border ${
-            isLoss ? 'bg-red-50 border-red-100 text-red-600' : 'bg-teal-50 border-teal-100 text-teal-600'
-          }`}>
-            <DollarSign className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Body */}
-      {month === null ? (
-        // --- ANNUAL VIEW ---
-        <div className="space-y-8 animate-fadeIn">
-          {/* Bar Chart Receita x Despesa */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                Histórico Mensal — {year}
-              </h3>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-emerald-500"></span>
-                  <span className="text-slate-600">Receitas</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-rose-500"></span>
-                  <span className="text-slate-600">Despesas Totais</span>
-                </div>
+      {/* SUB-TAB: DASHBOARD */}
+      {subTab === 'dashboard' && (
+        <div className="space-y-8">
+          {/* Dashboard Executive Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Saldo Atual em Caixa</span>
+                <h3 className="text-2xl font-black text-slate-800">{formatCurrency(summary?.cash_balance)}</h3>
+              </div>
+              <div className="bg-slate-100 p-3.5 rounded-xl text-slate-800">
+                <DollarSign className="w-6 h-6" />
               </div>
             </div>
 
-            {/* Pure HTML Bar Chart */}
-            <div className="h-64 flex items-end justify-between gap-2 px-2 md:px-6 pt-6 overflow-x-auto scrollbar-none">
-              {summary?.monthly_breakdown.map((mb) => {
-                const totalMonthExp = mb.expenses + mb.salaries
-                const maxVal = Math.max(...(summary?.monthly_breakdown.map(x => Math.max(x.revenues, x.expenses + x.salaries))) || [1])
-                const revHeight = (mb.revenues / maxVal) * 100
-                const expHeight = (totalMonthExp / maxVal) * 100
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Recebimentos Pendentes</span>
+                <h3 className="text-2xl font-black text-amber-600">{formatCurrency(summary?.pending_receivables)}</h3>
+              </div>
+              <div className="bg-amber-50 p-3.5 rounded-xl text-amber-600">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Pagamentos Pendentes</span>
+                <h3 className="text-2xl font-black text-rose-600">{formatCurrency(summary?.pending_payables)}</h3>
+              </div>
+              <div className="bg-rose-50 p-3.5 rounded-xl text-rose-600">
+                <TrendingDown className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Receitas do Mês</span>
+                <h3 className="text-2xl font-black text-emerald-600">{formatCurrency(summary?.total_revenues)}</h3>
+              </div>
+              <div className="bg-emerald-50 p-3.5 rounded-xl text-emerald-600">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Despesas do Mês</span>
+                <h3 className="text-2xl font-black text-slate-800">
+                  {formatCurrency((summary?.total_expenses || 0) + (summary?.total_salaries || 0))}
+                </h3>
+              </div>
+              <div className="bg-slate-100 p-3.5 rounded-xl text-slate-800">
+                <TrendingDown className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between relative overflow-hidden group hover:shadow-md transition-all">
+              <div className="space-y-2">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Resultado do Mês</span>
+                <h3 className={`text-2xl font-black ${summary?.net_result >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {formatCurrency(summary?.net_result)}
+                </h3>
+              </div>
+              <div className={`p-3.5 rounded-xl ${summary?.net_result >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                {summary?.net_result >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Gráfico Comparativo: Receitas x Despesas */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div>
+              <h4 className="text-md font-bold text-slate-800 tracking-tight">Histórico Financeiro Mensal ({year})</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Demonstrativo mensal consolidado de fluxo de caixa</p>
+            </div>
+            
+            <div className="h-64 flex items-end gap-2 sm:gap-4 border-b border-slate-200 pb-2 relative">
+              {summary?.monthly_breakdown?.map((m) => {
+                const totalMonthExp = m.expenses + m.salaries
+                const maxAmount = Math.max(
+                  ...summary.monthly_breakdown.map(x => Math.max(x.revenues, x.expenses + x.salaries)),
+                  1000
+                )
+                const revHeight = (m.revenues / maxAmount) * 100
+                const expHeight = (totalMonthExp / maxAmount) * 100
 
                 return (
-                  <div key={mb.month} className="flex-1 flex flex-col items-center gap-2 min-w-[50px] group">
-                    <div className="w-full flex items-end justify-center gap-1 h-44 relative">
-                      {/* Tooltip on hover */}
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-10 whitespace-nowrap">
-                        <p className="font-bold text-slate-300">{mb.month_name}</p>
-                        <p className="text-emerald-400">Rec: {formatCurrency(mb.revenues)}</p>
-                        <p className="text-rose-400">Des: {formatCurrency(totalMonthExp)}</p>
-                        <p className={`font-semibold border-t border-slate-700 mt-1 pt-1 ${mb.net < 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
-                          Líq: {formatCurrency(mb.net)}
-                        </p>
-                      </div>
-
+                  <div key={m.month} className="flex-1 flex flex-col items-center h-full justify-end group">
+                    <div className="w-full flex justify-center items-end gap-1 h-5/6">
                       {/* Revenue Bar */}
                       <div 
-                        className="w-4 bg-emerald-500 hover:bg-emerald-600 rounded-t-sm transition-all duration-500 shadow-sm"
-                        style={{ height: `${Math.max(revHeight, 2)}%` }}
-                      ></div>
+                        style={{ height: `${revHeight}%` }} 
+                        className="w-3 sm:w-5 bg-emerald-500 rounded-t-sm relative transition-all group-hover:bg-emerald-400"
+                        title={`Receitas: ${formatCurrency(m.revenues)}`}
+                      />
                       {/* Expense Bar */}
                       <div 
-                        className="w-4 bg-rose-500 hover:bg-rose-600 rounded-t-sm transition-all duration-500 shadow-sm"
-                        style={{ height: `${Math.max(expHeight, 2)}%` }}
-                      ></div>
+                        style={{ height: `${expHeight}%` }} 
+                        className="w-3 sm:w-5 bg-rose-500 rounded-t-sm relative transition-all group-hover:bg-rose-400"
+                        title={`Despesas: ${formatCurrency(totalMonthExp)}`}
+                      />
                     </div>
-                    
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">{mb.month_name.substring(0,3)}</span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-2">{m.month_name}</span>
                   </div>
                 )
               })}
             </div>
+            <div className="flex gap-4 text-xs font-bold text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
+                <span>Receitas Realizadas</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 bg-rose-500 rounded-sm" />
+                <span>Despesas Quitas + Salários</span>
+              </div>
+            </div>
           </div>
 
-          {/* Category Distribution Grid (Revenues & Expenses Breakdown) */}
+          {/* Gráficos Rosquinha (Donut) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Receitas por Categoria */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Receitas por Categoria
-                </h3>
-              </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-8 justify-around">
               <div className="space-y-4">
-                {(!summary?.category_revenues || Object.keys(summary.category_revenues).length === 0) ? (
-                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma receita registrada no período.</p>
-                ) : (
-                  (() => {
-                    const maxVal = Math.max(...Object.values(summary.category_revenues), 1)
-                    return Object.entries(summary.category_revenues)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([cat, val]) => {
-                        const pct = (val / maxVal) * 100
-                        return (
-                          <div key={cat} className="space-y-1.5 animate-fadeIn">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-700 font-bold">{cat}</span>
-                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2.5">
-                              <div 
-                                className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" 
-                                style={{ width: `${pct}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )
-                      })
-                  })()
-                )}
-              </div>
-            </div>
-
-            {/* Despesas por Categoria */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Despesas e Custos por Categoria
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {(!summary?.category_expenses || Object.keys(summary.category_expenses).length === 0) ? (
-                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma despesa registrada no período.</p>
-                ) : (
-                  (() => {
-                    const maxVal = Math.max(...Object.values(summary.category_expenses), 1)
-                    return Object.entries(summary.category_expenses)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([cat, val]) => {
-                        const pct = (val / maxVal) * 100
-                        const isSalary = cat === 'Salários'
-                        return (
-                          <div key={cat} className="space-y-1.5 animate-fadeIn">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-700 font-bold">{cat}</span>
-                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2.5">
-                              <div 
-                                className={`h-2.5 rounded-full transition-all duration-500 ${isSalary ? 'bg-purple-500' : 'bg-rose-500'}`} 
-                                style={{ width: `${pct}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )
-                      })
-                  })()
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed breakdown table */}
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Relatório Detalhado Mensal</h3>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4">Mês</th>
-                    <th className="px-6 py-4 text-right">Receitas</th>
-                    <th className="px-6 py-4 text-right">Despesas Operacionais</th>
-                    <th className="px-6 py-4 text-right">Salários (RH)</th>
-                    <th className="px-6 py-4 text-right">Despesa Total</th>
-                    <th className="px-6 py-4 text-right">Resultado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {summary?.monthly_breakdown.map((mb) => {
-                    const totalMonthExp = mb.expenses + mb.salaries
-                    const isMonthLoss = mb.net < 0
+                <div>
+                  <h4 className="text-md font-bold text-slate-800 tracking-tight">Despesas por Categoria</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Destinação dos recursos quites</p>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2">
+                  {Object.entries(summary?.category_expenses || {}).map(([cat, val], idx) => {
+                    const total = Object.values(summary.category_expenses).reduce((a, b) => a + b, 0)
+                    const percent = total > 0 ? ((val / total) * 100).toFixed(0) : 0
+                    const palette = ["#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"]
                     return (
-                      <tr key={mb.month} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-4 font-bold text-slate-700">{mb.month_name}</td>
-                        <td className="px-6 py-4 text-right text-emerald-600">{formatCurrency(mb.revenues)}</td>
-                        <td className="px-6 py-4 text-right text-orange-600">{formatCurrency(mb.expenses)}</td>
-                        <td className="px-6 py-4 text-right text-purple-600">{formatCurrency(mb.salaries)}</td>
-                        <td className="px-6 py-4 text-right text-rose-600">{formatCurrency(totalMonthExp)}</td>
-                        <td className={`px-6 py-4 text-right font-bold ${isMonthLoss ? 'text-red-600' : 'text-teal-600'}`}>
-                          {formatCurrency(mb.net)}
-                        </td>
-                      </tr>
+                      <div key={cat} className="flex items-center justify-between text-xs gap-6">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <div style={{ backgroundColor: palette[idx % palette.length] }} className="w-2.5 h-2.5 rounded-full shrink-0" />
+                          <span className="font-medium truncate max-w-[120px]">{cat}</span>
+                        </div>
+                        <span className="font-black text-slate-800">{percent}% ({formatCurrency(val)})</span>
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // --- MONTHLY VIEW ---
-        <div className="space-y-8 animate-fadeIn">
-          {/* Category Distribution Grid (Revenues & Expenses Breakdown) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Receitas por Categoria */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Receitas por Categoria
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {(!summary?.category_revenues || Object.keys(summary.category_revenues).length === 0) ? (
-                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma receita registrada no período.</p>
-                ) : (
-                  (() => {
-                    const maxVal = Math.max(...Object.values(summary.category_revenues), 1)
-                    return Object.entries(summary.category_revenues)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([cat, val]) => {
-                        const pct = (val / maxVal) * 100
-                        return (
-                          <div key={cat} className="space-y-1.5 animate-fadeIn">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-700 font-bold">{cat}</span>
-                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2.5">
-                              <div 
-                                className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" 
-                                style={{ width: `${pct}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )
-                      })
-                  })()
-                )}
-              </div>
-            </div>
-
-            {/* Despesas por Categoria */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Despesas e Custos por Categoria
-                </h3>
-              </div>
-              <div className="space-y-4">
-                {(!summary?.category_expenses || Object.keys(summary.category_expenses).length === 0) ? (
-                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma despesa registrada no período.</p>
-                ) : (
-                  (() => {
-                    const maxVal = Math.max(...Object.values(summary.category_expenses), 1)
-                    return Object.entries(summary.category_expenses)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([cat, val]) => {
-                        const pct = (val / maxVal) * 100
-                        const isSalary = cat === 'Salários'
-                        return (
-                          <div key={cat} className="space-y-1.5 animate-fadeIn">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-700 font-bold">{cat}</span>
-                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-2.5">
-                              <div 
-                                className={`h-2.5 rounded-full transition-all duration-500 ${isSalary ? 'bg-purple-500' : 'bg-rose-500'}`} 
-                                style={{ width: `${pct}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )
-                      })
-                  })()
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            {/* Revenues (Receitas) section */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6 flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="text-emerald-500 w-5 h-5" />
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Receitas</h3>
                 </div>
-                <button
-                  onClick={() => openModal('revenue')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-sm shadow-emerald-900/10 hover:shadow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Lançar
-                </button>
               </div>
-
-              <div className="flex-1 overflow-x-auto">
-                {revenues.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-12 text-center">Nenhuma receita lançada neste mês.</p>
-                ) : (
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase">
-                        <th className="py-2.5">Categoria</th>
-                        <th className="py-2.5">Descrição</th>
-                        <th className="py-2.5">Data</th>
-                        <th className="py-2.5 text-right font-bold">Valor</th>
-                        <th className="py-2.5 text-center w-16">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 font-semibold text-slate-600">
-                      {revenues.map((rev) => (
-                        <tr key={rev.id} className="hover:bg-slate-50/50">
-                          <td className="py-3">
-                            <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] rounded-full uppercase font-bold">
-                              {rev.category}
-                            </span>
-                          </td>
-                          <td className="py-3 truncate max-w-[120px]" title={rev.description}>{rev.description}</td>
-                          <td className="py-3 text-slate-400">{new Date(rev.date).toLocaleDateString('pt-BR')}</td>
-                          <td className="py-3 text-right font-bold text-emerald-600">{formatCurrency(rev.amount)}</td>
-                          <td className="py-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button 
-                                onClick={() => openModal('revenue', rev)}
-                                className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                                title="Editar"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteItem('revenue', rev.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
-                                title="Excluir"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+              {summary?.category_expenses && renderDonutChart(summary.category_expenses)}
             </div>
 
-            {/* Expenses (Despesas) section */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6 flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="text-orange-500 w-5 h-5" />
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Despesas Operacionais</h3>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-8 justify-around">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-md font-bold text-slate-800 tracking-tight">Receitas por Forma de Recebimento</h4>
+                  <p className="text-xs text-slate-400 mt-0.5 font-medium">Canais de recebimento consolidados</p>
                 </div>
-                <button
-                  onClick={() => openModal('expense')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-sm shadow-orange-900/10 hover:shadow"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Lançar
-                </button>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2">
+                  {Object.entries(summary?.payment_methods_revenues || {}).map(([method, val], idx) => {
+                    const total = Object.values(summary.payment_methods_revenues).reduce((a, b) => a + b, 0)
+                    const percent = total > 0 ? ((val / total) * 100).toFixed(0) : 0
+                    const palette = ["#10b981", "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"]
+                    return (
+                      <div key={method} className="flex items-center justify-between text-xs gap-6">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <div style={{ backgroundColor: palette[idx % palette.length] }} className="w-2.5 h-2.5 rounded-full shrink-0" />
+                          <span className="font-medium">{method}</span>
+                        </div>
+                        <span className="font-black text-slate-800">{percent}% ({formatCurrency(val)})</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-
-              <div className="flex-1 overflow-x-auto">
-                {expenses.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-12 text-center">Nenhuma despesa operacional lançada neste mês.</p>
-                ) : (
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase">
-                        <th className="py-2.5">Categoria</th>
-                        <th className="py-2.5">Descrição</th>
-                        <th className="py-2.5">Data</th>
-                        <th className="py-2.5 text-right font-bold">Valor</th>
-                        <th className="py-2.5 text-center w-16">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 font-semibold text-slate-600">
-                      {expenses.map((exp) => (
-                        <tr key={exp.id} className="hover:bg-slate-50/50">
-                          <td className="py-3">
-                            <span className="px-2 py-0.5 bg-orange-50 border border-orange-100 text-orange-700 text-[10px] rounded-full uppercase font-bold">
-                              {exp.category}
-                            </span>
-                          </td>
-                          <td className="py-3 truncate max-w-[120px]" title={exp.description}>{exp.description}</td>
-                          <td className="py-3 text-slate-400">{new Date(exp.date).toLocaleDateString('pt-BR')}</td>
-                          <td className="py-3 text-right font-bold text-orange-600">{formatCurrency(exp.amount)}</td>
-                          <td className="py-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button 
-                                onClick={() => openModal('expense', exp)}
-                                className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                                title="Editar"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteItem('expense', exp.id)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
-                                title="Excluir"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Salários (Folha) Automático Details */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Users className="text-purple-500 w-5 h-5" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-                  Folha de Salários Integrada (RH)
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Valores apurados de forma automática com base nos contratos ativos dos colaboradores.</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-slate-600 text-xs font-semibold max-w-xl">
-              💡 Os salários são gerados a partir do cadastro do colaborador no módulo de **Colaboradores**. Caso ocorra alguma alteração nos cargos ou admissões/demissões, este resumo financeiro atualizará a folha de pagamento do respectivo mês automaticamente.
-            </div>
-            
-            {/* Note: In this local system, we don't fetch the list of employees explicitly for financial. But we can present the total salaries as verified. */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden">
-              <div className="bg-slate-50 p-4 flex items-center justify-between text-xs font-bold text-slate-700 uppercase">
-                <span>Resumo da Folha</span>
-                <span className="text-purple-700 text-sm">{formatCurrency(summary?.total_salaries)}</span>
-              </div>
+              {summary?.payment_methods_revenues && renderDonutChart(summary.payment_methods_revenues, false)}
             </div>
           </div>
         </div>
       )}
 
-      {/* --- REVENUE MODAL --- */}
+      {/* SUB-TAB: RECEBIMENTOS */}
+      {subTab === 'revenues' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-800">Controle de Recebimentos</h3>
+              <p className="text-xs text-slate-400">Entradas, fluxo operacional e previsões</p>
+            </div>
+            <button 
+              onClick={() => openRevModal()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Lançar Recebimento
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-widest text-[9px] font-extrabold">
+                <tr>
+                  <th className="px-6 py-4">Data Prevista</th>
+                  <th className="px-6 py-4">Descrição</th>
+                  <th className="px-6 py-4">Cliente</th>
+                  <th className="px-6 py-4">Categoria</th>
+                  <th className="px-6 py-4 text-right">Valor</th>
+                  <th className="px-6 py-4">Forma</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {revenues.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-8 text-slate-400 text-xs font-medium">Nenhum recebimento registrado para este período.</td>
+                  </tr>
+                ) : (
+                  revenues.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50/50">
+                      <td className="px-6 py-4 font-bold text-slate-700">{formatDate(r.expected_date || r.date)}</td>
+                      <td className="px-6 py-4 text-slate-600">{r.description}</td>
+                      <td className="px-6 py-4 text-slate-600">{r.client || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-600">{r.category}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-800">{formatCurrency(r.amount)}</td>
+                      <td className="px-6 py-4 text-slate-600">{r.payment_method || 'N/A'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${getStatusBadgeClass(r.status)}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => openRevModal(r)}
+                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg cursor-pointer"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteItem('revenue', r)}
+                            className="p-1.5 hover:bg-rose-50 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+                            title={r.status === 'Recebido' || r.status === 'Cancelado' ? 'Cancelar lançamento' : 'Excluir permanentemente'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB: PAGAMENTOS */}
+      {subTab === 'payments' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-800">Controle de Pagamentos</h3>
+              <p className="text-xs text-slate-400">Contas a pagar, obrigações e despesas recorrentes</p>
+            </div>
+            <button 
+              onClick={() => openExpModal()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Lançar Pagamento
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-widest text-[9px] font-extrabold">
+                <tr>
+                  <th className="px-6 py-4">Vencimento</th>
+                  <th className="px-6 py-4">Descrição</th>
+                  <th className="px-6 py-4">Fornecedor</th>
+                  <th className="px-6 py-4">Categoria</th>
+                  <th className="px-6 py-4 text-right">Valor</th>
+                  <th className="px-6 py-4">Forma</th>
+                  <th className="px-6 py-4 text-center">Recorrência</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="text-center py-8 text-slate-400 text-xs font-medium">Nenhum pagamento registrado para este período.</td>
+                  </tr>
+                ) : (
+                  expenses.map((e) => (
+                    <tr key={e.id} className="hover:bg-slate-50/50">
+                      <td className="px-6 py-4 font-bold text-slate-700">{formatDate(e.due_date || e.date)}</td>
+                      <td className="px-6 py-4 text-slate-600">{e.description}</td>
+                      <td className="px-6 py-4 text-slate-600">{e.supplier?.trade_name || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-600">{e.category}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-800">{formatCurrency(e.amount)}</td>
+                      <td className="px-6 py-4 text-slate-600">{e.payment_method || 'N/A'}</td>
+                      <td className="px-6 py-4 text-center text-slate-500 font-bold">
+                        {e.is_recurring ? (
+                          <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 border border-amber-300/40 rounded-full font-bold uppercase">
+                            {e.recurrence_period}
+                          </span>
+                        ) : 'Não'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${getStatusBadgeClass(e.status)}`}>
+                          {e.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => openExpModal(e)}
+                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg cursor-pointer"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteItem('expense', e)}
+                            className="p-1.5 hover:bg-rose-50 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+                            title={e.status === 'Pago' || e.status === 'Cancelado' ? 'Cancelar lançamento' : 'Excluir permanentemente'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB: FORNECEDORES */}
+      {subTab === 'suppliers' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-800">Cadastro de Fornecedores</h3>
+              <p className="text-xs text-slate-400">Gerenciamento de parceiros comerciais e dados bancários</p>
+            </div>
+            <button 
+              onClick={() => openSuppModal()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Fornecedor
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase tracking-widest text-[9px] font-extrabold">
+                <tr>
+                  <th className="px-6 py-4">Nome Fantasia</th>
+                  <th className="px-6 py-4">CNPJ</th>
+                  <th className="px-6 py-4">Contato</th>
+                  <th className="px-6 py-4">Telefone</th>
+                  <th className="px-6 py-4">Categoria</th>
+                  <th className="px-6 py-4">Forma Preferencial</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="text-center py-8 text-slate-400 text-xs font-medium">Nenhum fornecedor cadastrado.</td>
+                  </tr>
+                ) : (
+                  suppliers.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50/50">
+                      <td className="px-6 py-4 font-bold text-slate-700">{s.trade_name}</td>
+                      <td className="px-6 py-4 text-slate-600">{s.cnpj}</td>
+                      <td className="px-6 py-4 text-slate-600">{s.contact_person || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-600">{s.phone || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-600">{s.category}</td>
+                      <td className="px-6 py-4 text-slate-600">{s.preferred_payment_method || 'N/A'}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${s.is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-500 border border-slate-300'}`}>
+                          {s.is_active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => openSuppModal(s)}
+                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg cursor-pointer"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSupplier(s.id)}
+                            className="p-1.5 hover:bg-rose-50 text-rose-500 hover:text-rose-700 rounded-lg cursor-pointer"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-TAB: RELATÓRIOS */}
+      {subTab === 'reports' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div>
+            <h3 className="text-lg font-black text-slate-800">Exportação de Relatórios</h3>
+            <p className="text-xs text-slate-400">Emissão consolidada em formatos PDF e Excel com filtros avançados</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-slate-50/50 p-5 rounded-xl border border-slate-100">
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data de Início</label>
+              <input 
+                type="date" 
+                value={reportFilters.start_date}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, start_date: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data de Fim</label>
+              <input 
+                type="date" 
+                value={reportFilters.end_date}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, end_date: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fornecedor</label>
+              <select 
+                value={reportFilters.supplier_id}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, supplier_id: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              >
+                <option value="">Todos</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.trade_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Categoria</label>
+              <select 
+                value={reportFilters.category}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              >
+                <option value="">Todas</option>
+                <optgroup label="Despesas">
+                  {expenseCategoriesFlat.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Receitas">
+                  {revenueCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Forma de Pagamento</label>
+              <select 
+                value={reportFilters.payment_method}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, payment_method: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              >
+                <option value="">Todas</option>
+                {paymentMethods.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status</label>
+              <select 
+                value={reportFilters.status}
+                onChange={(e) => setReportFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+              >
+                <option value="">Todos</option>
+                <option value="Recebido">Recebidos / Quitados (Receitas)</option>
+                <option value="A Receber">A Receber (Receitas)</option>
+                <option value="Pago">Pagos / Quitados (Despesas)</option>
+                <option value="Pendente">Pendentes (Despesas)</option>
+                <option value="Cancelado">Cancelados</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              onClick={() => downloadReport('excel')}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all flex-1"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              Download Excel (.xlsx)
+            </button>
+            <button 
+              onClick={() => downloadReport('pdf')}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md transition-all flex-1"
+            >
+              <FileText className="w-4 h-4 text-rose-400" />
+              Download PDF (.pdf)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* REVENUE MODAL */}
       {showRevModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-md w-full rounded-2xl border border-slate-200 shadow-2xl p-6 relative animate-scaleUp">
-            <button 
-              onClick={() => setShowRevModal(false)}
-              className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-base font-bold text-slate-800 mb-6 uppercase tracking-wide border-b border-slate-100 pb-2">
-              {editingItem ? 'Editar Receita' : 'Adicionar Receita'}
-            </h3>
-
-            <form onSubmit={handleSaveRevenue} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Categoria</label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  {['Vendas', 'Delivery', 'Eventos', 'Outros'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Descrição</label>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-base">{editingItem ? 'Editar Recebimento' : 'Lançar Recebimento'}</h3>
+              <button onClick={() => setShowRevModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSaveRevenue} className="p-6 space-y-4 max-h-[500px] overflow-y-auto">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Descrição</label>
                 <input 
                   type="text" 
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
                   required
-                  placeholder="Ex: Vendas Delivery Almoço"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  value={revForm.description}
+                  onChange={(e) => setRevForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Ex: Recebimento Delivery iFood"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Valor (R$)</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Valor (R$)</label>
                   <input 
                     type="number" 
                     step="0.01"
-                    min="0"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
                     required
+                    value={revForm.amount}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Data</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Categoria</label>
+                  <select
+                    value={revForm.category}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    {revenueCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data Prevista</label>
                   <input 
                     type="date" 
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    value={revForm.expected_date}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, expected_date: e.target.value, date: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Forma de Recebimento</label>
+                  <select
+                    value={revForm.payment_method}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, payment_method: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    {paymentMethods.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status</label>
+                  <select
+                    value={revForm.status}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, status: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 font-bold"
+                  >
+                    <option value="A Receber">A Receber</option>
+                    <option value="Recebido">Recebido</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data de Recebimento</label>
+                  <input 
+                    type="date" 
+                    disabled={revForm.status !== 'Recebido'}
+                    value={revForm.received_date}
+                    onChange={(e) => setRevForm(prev => ({ ...prev, received_date: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 disabled:opacity-50"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-2 text-xs font-bold border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setShowRevModal(false)}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl cursor-pointer"
-                >
-                  Salvar
-                </button>
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Cliente (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={revForm.client}
+                  onChange={(e) => setRevForm(prev => ({ ...prev, client: e.target.value }))}
+                  placeholder="Nome do cliente/empresa"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Observações</label>
+                <textarea 
+                  value={revForm.observations}
+                  onChange={(e) => setRevForm(prev => ({ ...prev, observations: e.target.value }))}
+                  placeholder="Anotações gerais..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 h-20"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowRevModal(false)} className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md">Salvar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- EXPENSE MODAL --- */}
+      {/* EXPENSE MODAL */}
       {showExpModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-md w-full rounded-2xl border border-slate-200 shadow-2xl p-6 relative animate-scaleUp">
-            <button 
-              onClick={() => setShowExpModal(false)}
-              className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-base font-bold text-slate-800 mb-6 uppercase tracking-wide border-b border-slate-100 pb-2">
-              {editingItem ? 'Editar Despesa' : 'Adicionar Despesa'}
-            </h3>
-
-            <form onSubmit={handleSaveExpense} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Categoria</label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  {['Compras/Insumos', 'Aluguel', 'Energia/Água', 'Equipamentos', 'Marketing', 'Outros'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Descrição</label>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-base">{editingItem ? 'Editar Pagamento' : 'Lançar Pagamento'}</h3>
+              <button onClick={() => setShowExpModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSaveExpense} className="p-6 space-y-4 max-h-[500px] overflow-y-auto">
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Descrição</label>
                 <input 
                   type="text" 
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
                   required
-                  placeholder="Ex: Compra de Carnes e Hortifrúti"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  value={expForm.description}
+                  onChange={(e) => setExpForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Ex: Compra de Carne Fornecedor X"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Valor (R$)</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Valor (R$)</label>
                   <input 
                     type="number" 
                     step="0.01"
-                    min="0"
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
                     required
+                    value={expForm.amount}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Data</label>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fornecedor</label>
+                  <select
+                    value={expForm.supplier_id}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, supplier_id: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">Nenhum</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.trade_name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Categoria</label>
+                  <select
+                    value={expForm.category}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    {Object.entries(expenseCategoriesGrouped).map(([grp, list]) => (
+                      <optgroup key={grp} label={grp}>
+                        {list.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Forma de Pagamento</label>
+                  <select
+                    value={expForm.payment_method}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, payment_method: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    {paymentMethods.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data de Vencimento</label>
                   <input 
                     type="date" 
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
                     required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-250 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    value={expForm.due_date}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, due_date: e.target.value, date: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Data de Pagamento</label>
+                  <input 
+                    type="date" 
+                    disabled={expForm.status !== 'Pago'}
+                    value={expForm.payment_date}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, payment_date: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 disabled:opacity-50"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-2 text-xs font-bold border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setShowExpModal(false)}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 cursor-pointer"
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5 flex items-center gap-3 pt-6">
+                  <input 
+                    type="checkbox" 
+                    id="is_recurring_chk"
+                    checked={expForm.is_recurring}
+                    onChange={(e) => setExpForm(prev => ({ ...prev, is_recurring: e.target.checked }))}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-350 cursor-pointer"
+                  />
+                  <label htmlFor="is_recurring_chk" className="text-xs text-slate-600 font-bold uppercase cursor-pointer select-none">Despesa Recorrente?</label>
+                </div>
+                {expForm.is_recurring && (
+                  <div className="space-y-1.5 animate-fadeIn">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Periodicidade</label>
+                    <select
+                      value={expForm.recurrence_period}
+                      onChange={(e) => setExpForm(prev => ({ ...prev, recurrence_period: e.target.value }))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="semanal">Semanal</option>
+                      <option value="quinzenal">Quinzenal</option>
+                      <option value="mensal">Mensal</option>
+                      <option value="anual">Anual</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Status</label>
+                <select
+                  value={expForm.status}
+                  onChange={(e) => setExpForm(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 font-bold"
                 >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl cursor-pointer"
-                >
-                  Salvar
-                </button>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Pago">Pago</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Observações</label>
+                <textarea 
+                  value={expForm.observations}
+                  onChange={(e) => setExpForm(prev => ({ ...prev, observations: e.target.value }))}
+                  placeholder="Detalhes adicionais..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 h-20"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowExpModal(false)} className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPPLIER MODAL */}
+      {showSuppModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden animate-slideUp">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-base">{editingItem ? 'Editar Fornecedor' : 'Cadastrar Fornecedor'}</h3>
+              <button onClick={() => setShowSuppModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSaveSupplier} className="p-6 space-y-4 max-h-[500px] overflow-y-auto">
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Razão Social</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={suppForm.corporate_name}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, corporate_name: e.target.value }))}
+                    placeholder="Ex: Fornecedor de Carnes LTDA"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Nome Fantasia</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={suppForm.trade_name}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, trade_name: e.target.value }))}
+                    placeholder="Ex: Açougue do Boi"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CNPJ</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={suppForm.cnpj}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, cnpj: e.target.value }))}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inscrição Estadual (Opcional)</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.state_inscription}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, state_inscription: e.target.value }))}
+                    placeholder="Isento ou numeração"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Responsável</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.contact_person}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, contact_person: e.target.value }))}
+                    placeholder="Nome do contato"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Telefone</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.phone}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="(00) 0000-0000"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">WhatsApp</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.whatsapp}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, whatsapp: e.target.value }))}
+                    placeholder="(00) 00000-0000"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">E-mail</label>
+                  <input 
+                    type="email" 
+                    value={suppForm.email}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="email@fornecedor.com"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Categoria de Insumo</label>
+                  <select
+                    value={suppForm.category}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  >
+                    {supplierCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Endereço Completo</label>
+                <input 
+                  type="text" 
+                  value={suppForm.address}
+                  onChange={(e) => setSuppForm(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Rua, Número, Bairro, Cidade - Estado"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Informações Financeiras */}
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest border-b border-slate-200/60 pb-1.5">Informações Financeiras</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Forma de Pgto Preferencial</label>
+                    <select
+                      value={suppForm.preferred_payment_method}
+                      onChange={(e) => setSuppForm(prev => ({ ...prev, preferred_payment_method: e.target.value }))}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    >
+                      {paymentMethods.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Chave PIX</label>
+                    <input 
+                      type="text" 
+                      value={suppForm.pix_key}
+                      onChange={(e) => setSuppForm(prev => ({ ...prev, pix_key: e.target.value }))}
+                      placeholder="CNPJ, E-mail, Celular ou Aleatória"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Banco</label>
+                    <input 
+                      type="text" 
+                      value={suppForm.bank}
+                      onChange={(e) => setSuppForm(prev => ({ ...prev, bank: e.target.value }))}
+                      placeholder="Nome do Banco"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Agência</label>
+                    <input 
+                      type="text" 
+                      value={suppForm.agency}
+                      onChange={(e) => setSuppForm(prev => ({ ...prev, agency: e.target.value }))}
+                      placeholder="Agência"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Conta</label>
+                    <input 
+                      type="text" 
+                      value={suppForm.account}
+                      onChange={(e) => setSuppForm(prev => ({ ...prev, account: e.target.value }))}
+                      placeholder="Conta Corrente"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações Comerciais */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Prazo de Pagamento</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.payment_terms}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, payment_terms: e.target.value }))}
+                    placeholder="Ex: 30 dias, 15/30 dias, à vista"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Dias de Entrega</label>
+                  <input 
+                    type="text" 
+                    value={suppForm.delivery_days}
+                    onChange={(e) => setSuppForm(prev => ({ ...prev, delivery_days: e.target.value }))}
+                    placeholder="Ex: Segundas e Quintas"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Observações Comerciais</label>
+                <textarea 
+                  value={suppForm.notes}
+                  onChange={(e) => setSuppForm(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Minutos de atraso tolerado, histórico de negociações, etc..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-amber-500 h-20"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowSuppModal(false)} className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md">Salvar</button>
               </div>
             </form>
           </div>

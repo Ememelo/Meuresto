@@ -16,16 +16,17 @@ const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
   const { user, logout } = useAuth()
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
-    { id: 'employees', label: 'Colaboradores', icon: Users, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
-    { id: 'financial', label: 'Financeiro', icon: TrendingUp, roles: ['admin', 'socio'] },
-    { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet, roles: ['admin', 'rh', 'socio'] },
-    { id: 'settings', label: 'Acesso & Usuários', icon: Settings, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] }
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'admin_delegado', 'rh', 'socio', 'gestor', 'consulta'] },
+    { id: 'employees', label: 'Colaboradores', icon: Users, roles: ['admin', 'admin_delegado', 'rh', 'socio', 'gestor', 'consulta'] },
+    { id: 'financial', label: 'Financeiro', icon: TrendingUp, roles: ['admin', 'admin_delegado', 'socio'] },
+    { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet, roles: ['admin', 'admin_delegado', 'rh', 'socio'] },
+    { id: 'settings', label: 'Acesso & Usuários', icon: Settings, roles: ['admin', 'admin_delegado', 'rh', 'socio', 'gestor', 'consulta'] }
   ]
 
   const getRoleLabel = (role) => {
     const labels = {
-      admin: 'Administrador',
+      admin: 'Administrador Master',
+      admin_delegado: 'Admin Delegado',
       rh: 'Recursos Humanos',
       socio: 'Sócio-Diretor',
       gestor: 'Gestor de Equipe',

@@ -11,7 +11,8 @@ from app.db.session import get_db
 from app.models.all_models import User
 from app.schemas.all_schemas import (
     Token, LoginRequest, UserResponse, UserCreate, PasswordChangeRequest,
-    AdminPasswordResetRequest, ForgotPasswordRequest, UserRoleUpdateRequest
+    AdminPasswordResetRequest, ForgotPasswordRequest, UserRoleUpdateRequest,
+    UserGroupUpdateRequest
 )
 from app.services.audit_service import log_action
 
@@ -86,19 +87,34 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         "username": user.username
     }
 
-# Criar Novo Usuário (Apenas Admin)
+# Criar Novo Usuário (Admin Master ou Admin Delegado)
 @router.post("/register", response_model=UserResponse)
 def register(
     user_in: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     validate_email_format(user_in.email)
+    
+    # Determine the group_id to set
+    if current_user.role == "admin_delegado":
+        # Admin Delegado can only create users in their own group
+        group_id_to_set = current_user.group_id
+        if user_in.role == "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para criar um usuário Administrador Master."
+            )
+    else:
+        # Admin Master can create users in any group
+        group_id_to_set = user_in.group_id
+
     if user_in.role == "admin":
         raise HTTPException(
             status_code=400,
             detail="O perfil Administrador (Master) é exclusivo e não pode ser concedido a outros usuários."
         )
+
     existing_user = db.query(User).filter(
         (User.username == user_in.username) | (User.email == user_in.email)
     ).first()
@@ -113,6 +129,7 @@ def register(
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
         role=user_in.role,
+        group_id=group_id_to_set,
         is_active=True
     )
     db.add(db_user)
@@ -136,12 +153,33 @@ def signup(
     user_in: UserCreate,
     db: Session = Depends(get_db)
 ):
+    from app.models.all_models import Group
     validate_email_format(user_in.email)
-    if user_in.role == "admin":
+    if user_in.role in ["admin", "admin_delegado"]:
         raise HTTPException(
             status_code=400,
-            detail="O perfil Administrador (Master) é exclusivo e não pode ser concedido a outros usuários."
+            detail="Perfis de Administrador não podem ser criados via cadastro público."
         )
+        
+    # Assign group_id
+    if not user_in.group_id:
+        first_group = db.query(Group).filter(Group.is_active == True).first()
+        if not first_group:
+            raise HTTPException(
+                status_code=400,
+                detail="Nenhum grupo ativo cadastrado no sistema para vincular o usuário."
+            )
+        group_id_to_set = first_group.id
+    else:
+        # Check if selected group is active
+        group_check = db.query(Group).filter(Group.id == user_in.group_id, Group.is_active == True).first()
+        if not group_check:
+            raise HTTPException(
+                status_code=400,
+                detail="O grupo selecionado não está ativo ou não existe."
+            )
+        group_id_to_set = user_in.group_id
+
     existing_user = db.query(User).filter(
         (User.username == user_in.username) | (User.email == user_in.email)
     ).first()
@@ -156,6 +194,7 @@ def signup(
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
         role=user_in.role,
+        group_id=group_id_to_set,
         is_active=True
     )
     db.add(db_user)
@@ -194,24 +233,35 @@ def change_password(
     log_action(db, current_user.id, "CHANGE_PASSWORD", "users", current_user.id)
     return {"message": "Senha alterada com sucesso."}
 
-# Listar todos os usuários (Apenas Admin)
+# Listar todos os usuários (Admin Master ou Admin Delegado)
 @router.get("/users", response_model=List[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
-    return db.query(User).all()
+    if current_user.role == "admin":
+        return db.query(User).all()
+    else:
+        return db.query(User).filter(User.group_id == current_user.group_id).all()
 
-# Ativar/Desativar Usuário (Apenas Admin)
+# Ativar/Desativar Usuário (Admin Master ou Admin Delegado)
 @router.put("/users/{user_id}/toggle-active")
 def toggle_user_active(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        
+    # Check tenant isolation
+    if current_user.role == "admin_delegado":
+        if user.group_id != current_user.group_id:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para alterar usuários de outro grupo.")
+        if user.role == "admin":
+            raise HTTPException(status_code=403, detail="Você não tem permissão para alterar o status do Administrador Master.")
+
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Você não pode desativar seu próprio usuário.")
     user.is_active = not user.is_active
@@ -241,17 +291,24 @@ def forgot_password(
     return {"message": "Solicitação de redefinição de senha enviada para o administrador master."}
 
 
-# Resetar Senha de Outro Usuário (Apenas Admin)
+# Resetar Senha de Outro Usuário (Admin Master ou Admin Delegado)
 @router.post("/users/{user_id}/reset-password")
 def admin_reset_password(
     user_id: str,
     req: AdminPasswordResetRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        
+    # Check tenant isolation
+    if current_user.role == "admin_delegado":
+        if user.group_id != current_user.group_id:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para resetar a senha de um usuário de outro grupo.")
+        if user.role == "admin":
+            raise HTTPException(status_code=403, detail="Você não tem permissão para alterar a senha do Administrador Master.")
     
     user.password_hash = get_password_hash(req.new_password)
     user.password_reset_requested = False
@@ -260,17 +317,25 @@ def admin_reset_password(
     return {"message": f"Senha do usuário {user.username} redefinida com sucesso."}
 
 
-# Alterar Nível de Acesso de Outro Usuário (Apenas Admin)
+# Alterar Nível de Acesso de Outro Usuário (Admin Master ou Admin Delegado)
 @router.put("/users/{user_id}/role")
 def update_user_role(
     user_id: str,
     req: UserRoleUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        
+    # Check tenant isolation
+    if current_user.role == "admin_delegado":
+        if user.group_id != current_user.group_id:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para alterar o nível de acesso de um usuário de outro grupo.")
+        if req.role == "admin":
+            raise HTTPException(status_code=403, detail="Você não tem permissão para promover alguém ao cargo de Administrador Master.")
+            
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Você não pode alterar seu próprio nível de acesso.")
     if req.role == "admin":
@@ -283,16 +348,22 @@ def update_user_role(
     return {"message": f"Nível de acesso do usuário {user.username} atualizado para {req.role} com sucesso."}
 
 
-# Alternar Acesso Financeiro de Outro Usuário (Apenas Admin)
+# Alternar Acesso Financeiro de Outro Usuário (Admin Master ou Admin Delegado)
 @router.put("/users/{user_id}/toggle-financial-access")
 def toggle_user_financial_access(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        
+    # Check tenant isolation
+    if current_user.role == "admin_delegado":
+        if user.group_id != current_user.group_id:
+            raise HTTPException(status_code=403, detail="Você não tem permissão para alterar o acesso financeiro de um usuário de outro grupo.")
+
     if user.role == "admin":
         raise HTTPException(status_code=400, detail="O administrador sempre possui acesso financeiro.")
         
@@ -320,3 +391,42 @@ def delete_user(
     db.commit()
     log_action(db, current_user.id, "DELETE_USER", "users", user_id, {"username": username})
     return {"message": f"Usuário {username} excluído com sucesso."}
+
+
+# Transferir Usuário de Grupo (Apenas Admin Master)
+@router.put("/users/{user_id}/group")
+def update_user_group(
+    user_id: str,
+    req: UserGroupUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin"]))
+):
+    """
+    Transfer user to a different group. Restricted to Admin Master.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Você não pode alterar o grupo do seu próprio usuário.")
+        
+    # Check if target group exists and is active
+    from app.models.all_models import Group
+    group = db.query(Group).filter(Group.id == req.group_id).first()
+    if not group:
+        raise HTTPException(status_code=400, detail="Grupo de destino não encontrado.")
+    if not group.is_active:
+        raise HTTPException(status_code=400, detail="O grupo de destino não está ativo.")
+        
+    old_group_id = user.group_id
+    user.group_id = req.group_id
+    db.commit()
+    log_action(
+        db, 
+        current_user.id, 
+        "TRANSFER_USER_GROUP", 
+        "users", 
+        user_id, 
+        {"username": user.username, "old_group_id": old_group_id, "new_group_id": req.group_id}
+    )
+    return {"message": f"Usuário {user.username} transferido para o grupo {group.name} com sucesso."}

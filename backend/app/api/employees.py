@@ -7,12 +7,22 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.all_models import Employee, Contract, Shift, Dependent, CareerHistory, User
+from app.models.all_models import Employee, Contract, Shift, Dependent, CareerHistory, User, Group
 from app.schemas.all_schemas import EmployeeCreate, EmployeeResponse, EmployeeListResponse, EmployeeUpdate, CareerHistoryResponse, DependentCreate, DependentResponse
 from app.api.auth import get_current_user, RoleChecker
 from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+# Helper to check employee group isolation
+def check_employee_group(db: Session, employee_id: str, current_user: User) -> Employee:
+    query = db.query(Employee).filter(Employee.id == employee_id)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    emp = query.first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    return emp
 
 # Helper to log career history changes
 def log_career(db: Session, employee_id: str, username: str, field: str, old_val: str, new_val: str, reason: str | None):
@@ -32,10 +42,15 @@ def list_employees(
     search: Optional[str] = None,
     department: Optional[str] = None,
     status_filter: Optional[str] = None,
+    group_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Employee).filter(Employee.user_id == current_user.id)
+    query = db.query(Employee)
+    if current_user.role != "admin":
+        query = query.filter(Employee.group_id == current_user.group_id)
+    elif group_id:
+        query = query.filter(Employee.group_id == group_id)
     
     if search:
         query = query.filter(
@@ -77,7 +92,7 @@ def list_employees(
 @router.get("/next-registration")
 def get_next_registration(
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["admin", "admin_delegado", "rh"]))
 ):
     registrations = db.query(Employee.registration_number).all()
     max_num = 0
@@ -99,17 +114,14 @@ def get_employee(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
-    return emp
+    return check_employee_group(db, employee_id, current_user)
 
-# Create employee (RH or Admin)
+# Create employee (RH, Admin Master, or Admin Delegado)
 @router.post("", response_model=EmployeeResponse)
 def create_employee(
     emp_in: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
     # Auto-generate or check registration number
     reg_num = emp_in.registration_number
@@ -126,19 +138,35 @@ def create_employee(
                     pass
         reg_num = f"F{max_num + 1:04d}"
 
-    # Check duplicate CPF or Registration Number
-    existing = db.query(Employee).filter(
+    # Determine group_id
+    if current_user.role == "admin":
+        # Admin master can specify group_id or fallback to default
+        if emp_in.group_id:
+            group_id_to_set = emp_in.group_id
+        else:
+            default_group = db.query(Group).first()
+            group_id_to_set = default_group.id if default_group else None
+    else:
+        # Others use current_user's group_id
+        group_id_to_set = current_user.group_id
+
+    # Check duplicate CPF or Registration Number within the group
+    query_exist = db.query(Employee).filter(
         (Employee.cpf == emp_in.cpf) | 
         (Employee.registration_number == reg_num)
-    ).first()
+    )
+    if group_id_to_set:
+        query_exist = query_exist.filter(Employee.group_id == group_id_to_set)
+    existing = query_exist.first()
     
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail="Colaborador com este CPF ou Matrícula já está cadastrado."
+            detail="Colaborador com este CPF ou Matrícula já está cadastrado nesta empresa/grupo."
         )
         
     db_emp = Employee(
+        group_id=group_id_to_set,
         user_id=current_user.id,
         registration_number=reg_num,
         name=emp_in.name,
@@ -215,15 +243,15 @@ def create_employee(
     
     return db_emp
 
-# Update Employee and trigger career logging (RH or Admin)
+# Update Employee and trigger career logging (RH, Admin Master, or Admin Delegado)
 @router.put("/{employee_id}", response_model=EmployeeResponse)
 def update_employee(
     employee_id: str,
     emp_update: EmployeeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    db_emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+    db_emp = check_employee_group(db, employee_id, current_user)
     if not db_emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
         
@@ -282,15 +310,15 @@ def update_employee(
         
     return db_emp
 
-# Upload Profile Photo (RH or Admin)
+# Upload Profile Photo (RH, Admin Master, or Admin Delegado)
 @router.post("/{employee_id}/upload-photo")
 def upload_photo(
     employee_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
+    emp = check_employee_group(db, employee_id, current_user)
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
         
@@ -318,21 +346,17 @@ def get_employee_career_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    check_employee_group(db, employee_id, current_user)
     return db.query(CareerHistory).filter(CareerHistory.employee_id == employee_id).order_by(CareerHistory.change_date.desc()).all()
 
-# Delete Employee (Physical Delete) - (Admin only)
+# Delete Employee (Physical Delete) - (Admin Master, Admin Delegado or RH)
 @router.delete("/{employee_id}")
 def delete_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    emp = check_employee_group(db, employee_id, current_user)
         
     db.delete(emp)
     db.commit()
@@ -344,9 +368,12 @@ def delete_employee(
 def delete_dependent(
     dependent_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id, Employee.user_id == current_user.id).first()
+    query_dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id)
+    if current_user.role != "admin":
+        query_dep = query_dep.filter(Employee.group_id == current_user.group_id)
+    dep = query_dep.first()
     if not dep:
         raise HTTPException(status_code=404, detail="Dependente não encontrado.")
     db.delete(dep)
@@ -359,11 +386,9 @@ def add_dependent(
     employee_id: str,
     dep_in: DependentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
-    if not emp:
-        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    emp = check_employee_group(db, employee_id, current_user)
     db_dep = Dependent(
         employee_id=employee_id,
         name=dep_in.name,
@@ -381,9 +406,12 @@ def update_dependent(
     dependent_id: str,
     dep_in: DependentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["rh", "admin"]))
+    current_user: User = Depends(RoleChecker(["rh", "admin", "admin_delegado"]))
 ):
-    dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id, Employee.user_id == current_user.id).first()
+    query_dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id)
+    if current_user.role != "admin":
+        query_dep = query_dep.filter(Employee.group_id == current_user.group_id)
+    dep = query_dep.first()
     if not dep:
         raise HTTPException(status_code=404, detail="Dependente não encontrado.")
     dep.name = dep_in.name

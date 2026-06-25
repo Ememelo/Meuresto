@@ -8,25 +8,44 @@ from app.db.session import Base
 _relationship = relationship
 
 
+class Group(Base):
+    __tablename__ = "groups"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), unique=True, nullable=False, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    users = relationship("User", back_populates="group")
+    employees = relationship("Employee", back_populates="group")
+    revenues = relationship("FinancialRevenue", back_populates="group")
+    expenses = relationship("FinancialExpense", back_populates="group")
+    audit_logs = relationship("AuditLog", back_populates="group")
+    suppliers = relationship("Supplier", back_populates="group")
+
 class User(Base):
     __tablename__ = "users"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(100), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), default="consulta", nullable=False)  # admin, rh, socio, gestor, consulta
+    role = Column(String(20), default="consulta", nullable=False)  # admin, admin_delegado, rh, socio, gestor, consulta
     is_active = Column(Boolean, default=True, nullable=False)
     password_reset_requested = Column(Boolean, default=False, nullable=False)
     has_financial_access = Column(Boolean, default=False, nullable=False)
     
     # Relationships
+    group = relationship("Group", back_populates="users")
     audit_logs = relationship("AuditLog", back_populates="user")
 
 class Employee(Base):
     __tablename__ = "employees"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     registration_number = Column(String(20), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False, index=True)
@@ -63,6 +82,7 @@ class Employee(Base):
     reservista = Column(String(30), nullable=True)
     
     # Relationships
+    group = relationship("Group", back_populates="employees")
     dependents = relationship("Dependent", back_populates="employee", cascade="all, delete-orphan")
     contract = relationship("Contract", back_populates="employee", uselist=False, cascade="all, delete-orphan")
     career_history = relationship("CareerHistory", back_populates="employee", cascade="all, delete-orphan")
@@ -174,6 +194,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=False)  # CREATE_EMPLOYEE, UPDATE_SALARY, DELETE_EMPLOYEE, LOGIN, RELATORIO
     table_name = Column(String(50), nullable=True)
@@ -182,32 +203,98 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
+    group = relationship("Group", back_populates="audit_logs")
     user = relationship("User", back_populates="audit_logs")
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
+    corporate_name = Column(String(255), nullable=False)
+    trade_name = Column(String(255), nullable=False)
+    cnpj = Column(String(20), nullable=False)
+    state_inscription = Column(String(30), nullable=True)
+    contact_person = Column(String(100), nullable=True)
+    phone = Column(String(20), nullable=True)
+    whatsapp = Column(String(20), nullable=True)
+    email = Column(String(100), nullable=True)
+    address = Column(String(255), nullable=True)
+    category = Column(String(50), nullable=False)
+    preferred_payment_method = Column(String(50), nullable=True)
+    bank = Column(String(50), nullable=True)
+    agency = Column(String(20), nullable=True)
+    account = Column(String(30), nullable=True)
+    pix_key = Column(String(100), nullable=True)
+    payment_terms = Column(String(100), nullable=True)
+    delivery_days = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by = Column(String(50), nullable=True)
+    updated_by = Column(String(50), nullable=True)
+
+    # Relationships
+    group = relationship("Group", back_populates="suppliers")
+    expenses = relationship("FinancialExpense", back_populates="supplier")
 
 
 class FinancialRevenue(Base):
     __tablename__ = "financial_revenues"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     description = Column(String(255), nullable=False)
     amount = Column(Float, nullable=False)
     category = Column(String(50), nullable=False)  # Vendas, Delivery, Eventos, Outros
-    date = Column(Date, nullable=False)
+    date = Column(Date, nullable=False)  # keep as entry/expected date
+    expected_date = Column(Date, nullable=True)
+    received_date = Column(Date, nullable=True)
+    payment_method = Column(String(50), nullable=True)
+    status = Column(String(20), default="A Receber", nullable=False)  # A Receber, Recebido, Cancelado
+    client = Column(String(255), nullable=True)
+    observations = Column(Text, nullable=True)
     created_by = Column(String(50), nullable=True)
+    updated_by = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    change_history = Column(Text, nullable=True)
     reference_month = Column(Integer, nullable=False)
     reference_year = Column(Integer, nullable=False)
+
+    # Relationships
+    group = relationship("Group", back_populates="revenues")
 
 
 class FinancialExpense(Base):
     __tablename__ = "financial_expenses"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    supplier_id = Column(String(36), ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True)
     description = Column(String(255), nullable=False)
     amount = Column(Float, nullable=False)
-    category = Column(String(50), nullable=False)  # Compras/Insumos, Salários, Aluguel, Energia/Água, Equipamentos, Marketing, Outros
-    date = Column(Date, nullable=False)
+    category = Column(String(50), nullable=False)
+    date = Column(Date, nullable=False)  # keep as due date
+    due_date = Column(Date, nullable=True)
+    payment_date = Column(Date, nullable=True)
+    payment_method = Column(String(50), nullable=True)
+    status = Column(String(20), default="Pendente", nullable=False)  # Pendente, Pago, Cancelado
+    observations = Column(Text, nullable=True)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    recurrence_period = Column(String(20), nullable=True)
     created_by = Column(String(50), nullable=True)
+    updated_by = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    change_history = Column(Text, nullable=True)
     reference_month = Column(Integer, nullable=False)
     reference_year = Column(Integer, nullable=False)
+
+    # Relationships
+    group = relationship("Group", back_populates="expenses")
+    supplier = relationship("Supplier", back_populates="expenses")

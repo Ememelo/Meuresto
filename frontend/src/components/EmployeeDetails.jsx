@@ -418,6 +418,48 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                 <div className="md:col-span-2"><span className="font-bold text-slate-500 text-xs block">Cidade/UF:</span> <span className="text-slate-800">{emp.address_city} - {emp.address_state}</span></div>
               </div>
             </div>
+
+            <div>
+              <h3 className="text-xs font-bold text-amber-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">Contrato & Benefícios</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                <div><span className="font-bold text-slate-500 text-xs block">Data de Admissão:</span> <span className="text-slate-800">{emp.contract?.admission_date ? new Date(emp.contract.admission_date).toLocaleDateString('pt-BR') : 'N/A'}</span></div>
+                <div><span className="font-bold text-slate-500 text-xs block">Escala de Trabalho:</span> <span className="text-slate-800">{emp.shift?.scale_type || 'N/A'}</span></div>
+                <div><span className="font-bold text-slate-500 text-xs block">Horário:</span> <span className="text-slate-800">{emp.shift ? `${emp.shift.entry_time} às ${emp.shift.exit_time}` : 'N/A'}</span></div>
+                
+                <div className="md:col-span-3">
+                  <span className="font-bold text-slate-500 text-xs block mb-1.5">Benefícios Ativos (Custo Mensal):</span>
+                  {(() => {
+                    if (!emp.contract?.benefits) return <span className="text-slate-400 italic text-xs">Nenhum benefício cadastrado</span>
+                    try {
+                      const bData = JSON.parse(emp.contract.benefits)
+                      if (Array.isArray(bData)) {
+                        return (
+                          <div className="flex flex-wrap gap-2">
+                            {bData.map(b => (
+                              <span key={b} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold">{b}</span>
+                            ))}
+                          </div>
+                        )
+                      } else if (typeof bData === 'object' && bData !== null) {
+                        const active = Object.entries(bData).filter(([_, v]) => v)
+                        if (active.length === 0) return <span className="text-slate-400 italic text-xs">Nenhum benefício ativo</span>
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {active.map(([name, val]) => (
+                              <div key={name} className="p-2 border border-slate-100 rounded-lg bg-slate-50 flex justify-between items-center text-xs">
+                                <span className="font-semibold text-slate-700">{name}</span>
+                                <span className="font-bold text-amber-700">{formatBRL(parseFloat(val || 0))}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                    } catch(e) {}
+                    return <span className="text-slate-400 italic text-xs">Nenhum benefício cadastrado</span>
+                  })()}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

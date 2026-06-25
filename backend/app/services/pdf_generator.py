@@ -151,8 +151,13 @@ def generate_employee_ficha_pdf(emp: Employee) -> io.BytesIO:
     if emp.contract and emp.contract.benefits:
         try:
             benefits_dict = json.loads(emp.contract.benefits)
-            # dict to string list
-            benefits_list = [k for k, v in benefits_dict.items() if v]
+            if isinstance(benefits_dict, dict):
+                benefits_list = [
+                    f"{k}: R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") 
+                    for k, v in benefits_dict.items() if v
+                ]
+            elif isinstance(benefits_dict, list):
+                benefits_list = benefits_dict
         except Exception:
             benefits_list = [emp.contract.benefits]
             

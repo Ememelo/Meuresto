@@ -16,18 +16,26 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
           const res = await api.get(`/employees/${employeeId}`)
           const emp = res.data
           
-          // Parse benefits list
+          // Parse benefits list and values
           const activeBenefits = { vt: false, vr: false, va: false, health: false, dental: false, life: false }
+          const benefitValues = { vt: '', vr: '', va: '', health: '', dental: '', life: '' }
           if (emp.contract && emp.contract.benefits) {
             try {
-              const bList = JSON.parse(emp.contract.benefits)
-              if (Array.isArray(bList)) {
-                if (bList.includes('VT')) activeBenefits.vt = true
-                if (bList.includes('VR')) activeBenefits.vr = true
-                if (bList.includes('VA')) activeBenefits.va = true
-                if (bList.includes('Plano Saúde')) activeBenefits.health = true
-                if (bList.includes('Odonto')) activeBenefits.dental = true
-                if (bList.includes('Seguro Vida')) activeBenefits.life = true
+              const bData = JSON.parse(emp.contract.benefits)
+              const labelsInverse = { 'VT': 'vt', 'VR': 'vr', 'VA': 'va', 'Plano Saúde': 'health', 'Odonto': 'dental', 'Seguro Vida': 'life' }
+              if (Array.isArray(bData)) {
+                bData.forEach(item => {
+                  const key = labelsInverse[item]
+                  if (key) activeBenefits[key] = true
+                })
+              } else if (typeof bData === 'object' && bData !== null) {
+                Object.keys(bData).forEach(item => {
+                  const key = labelsInverse[item]
+                  if (key) {
+                    activeBenefits[key] = true
+                    benefitValues[key] = bData[item] !== null ? String(bData[item]) : ''
+                  }
+                })
               }
             } catch(e) {}
           }
@@ -66,6 +74,7 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
             base_salary: emp.contract?.base_salary || '',
             
             benefits: activeBenefits,
+            benefitValues: benefitValues,
             
             scale_type: emp.shift?.scale_type || '5x2',
             entry_time: emp.shift?.entry_time || '09:00',
@@ -144,6 +153,14 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
       dental: false,
       life: false
     },
+    benefitValues: {
+      vt: '',
+      vr: '',
+      va: '',
+      health: '',
+      dental: '',
+      life: ''
+    },
     
     // Shift
     scale_type: '5x2',
@@ -173,6 +190,17 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
       benefits: {
         ...prev.benefits,
         [name]: checked
+      }
+    }))
+  }
+
+  // Handle Benefit Value Changes
+  const handleBenefitValueChange = (benefitKey, val) => {
+    setFormData(prev => ({
+      ...prev,
+      benefitValues: {
+        ...prev.benefitValues,
+        [benefitKey]: val
       }
     }))
   }
@@ -235,12 +263,14 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
     setLoading(true)
     
     // Format payload
-    const activeBenefits = Object.keys(formData.benefits)
-      .filter(k => formData.benefits[k])
-      .map(k => {
+    const activeBenefits = {}
+    Object.keys(formData.benefits).forEach(k => {
+      if (formData.benefits[k]) {
         const labels = { vt: 'VT', vr: 'VR', va: 'VA', health: 'Plano Saúde', dental: 'Odonto', life: 'Seguro Vida' }
-        return labels[k]
-      })
+        const label = labels[k]
+        activeBenefits[label] = parseFloat(formData.benefitValues[k]) || 0.0
+      }
+    })
 
     try {
       if (employeeId) {
@@ -824,7 +854,7 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
                   { id: 'dental', label: 'Plano Odonto' },
                   { id: 'life', label: 'Seguro de Vida' }
                 ].map((b) => (
-                  <div key={b.id} className="flex items-center gap-2.5 p-3 border border-slate-200 rounded-lg bg-slate-50/40 hover:bg-white transition-colors cursor-pointer">
+                  <div key={b.id} className={`flex items-center gap-2.5 p-3 border rounded-lg transition-colors cursor-pointer ${formData.benefits[b.id] ? 'border-amber-500 bg-amber-50/10' : 'border-slate-200 bg-slate-50/40 hover:bg-white'}`}>
                     <input
                       type="checkbox"
                       id={`benefit_${b.id}`}
@@ -839,6 +869,39 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
                   </div>
                 ))}
               </div>
+
+              {/* Selected Benefits Cost Inputs */}
+              {Object.values(formData.benefits).some(Boolean) && (
+                <div className="mt-4 p-4 border border-slate-100 bg-slate-50/50 rounded-xl space-y-4 animate-fadeIn">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valores dos Benefícios (Custo Mensal - R$)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { id: 'vt', label: 'V. Transporte' },
+                      { id: 'vr', label: 'V. Refeição' },
+                      { id: 'va', label: 'V. Alimentação' },
+                      { id: 'health', label: 'Plano de Saúde' },
+                      { id: 'dental', label: 'Plano Odonto' },
+                      { id: 'life', label: 'Seguro de Vida' }
+                    ].map((b) => {
+                      if (!formData.benefits[b.id]) return null
+                      return (
+                        <div key={b.id} className="animate-fadeIn">
+                          <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1 block">Valor {b.label}</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            name={`benefit_val_${b.id}`}
+                            value={formData.benefitValues[b.id]}
+                            onChange={(e) => handleBenefitValueChange(b.id, e.target.value)}
+                            placeholder="0.00"
+                            className="form-input"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Shift/Jornada Section */}

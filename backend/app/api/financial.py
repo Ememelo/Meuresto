@@ -86,6 +86,16 @@ def calculate_salaries_for_period(db: Session, year: int, month: int) -> float:
 
         if is_active_then:
             total_salary += contract.base_salary
+            if contract.benefits:
+                try:
+                    import json
+                    benefits_data = json.loads(contract.benefits)
+                    if isinstance(benefits_data, dict):
+                        for benefit_name, cost in benefits_data.items():
+                            if cost:
+                                total_salary += float(cost)
+                except Exception:
+                    pass
 
     return total_salary
 

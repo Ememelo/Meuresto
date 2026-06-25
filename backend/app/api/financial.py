@@ -160,27 +160,61 @@ def get_financial_summary(
     if total_rev > 0:
         margin = (net_result / total_rev) * 100
 
-    # Calculate previous month balance
+    # Calculate accumulated previous balance
+    # Sum all revenues, expenses, and salaries prior to the selected period
+    from sqlalchemy import func
+    
+    # Find the earliest year in the database to start accumulating from
+    min_rev_year = db.query(func.min(FinancialRevenue.reference_year)).scalar()
+    min_exp_year = db.query(func.min(FinancialExpense.reference_year)).scalar()
+    # If no records exist, default to 2024
+    start_year = min(min_rev_year or year, min_exp_year or year, 2024)
+    
+    prev_rev = 0.0
+    prev_exp = 0.0
+    prev_sal = 0.0
+
     if month is not None:
-        prev_month = 12 if month == 1 else month - 1
-        prev_year = year - 1 if month == 1 else year
+        # We want all periods (y, m) where y < year OR (y == year and m < month)
+        # Sum Revenues
+        prev_rev_sum = db.query(func.sum(FinancialRevenue.amount)).filter(
+            (FinancialRevenue.reference_year < year) | 
+            ((FinancialRevenue.reference_year == year) & (FinancialRevenue.reference_month < month))
+        ).scalar() or 0.0
+        prev_rev = float(prev_rev_sum)
+
+        # Sum Expenses
+        prev_exp_sum = db.query(func.sum(FinancialExpense.amount)).filter(
+            (FinancialExpense.reference_year < year) | 
+            ((FinancialExpense.reference_year == year) & (FinancialExpense.reference_month < month))
+        ).scalar() or 0.0
+        prev_exp = float(prev_exp_sum)
+
+        # Sum Salaries
+        # Loop through all months prior to the selected month/year
+        for y in range(start_year, year + 1):
+            limit_m = month if y == year else 13
+            for m in range(1, limit_m):
+                prev_sal += calculate_salaries_for_period(db, y, m)
     else:
-        prev_month = 12
-        prev_year = year - 1
+        # Yearly view: we want all periods (y, m) where y < year
+        # Sum Revenues
+        prev_rev_sum = db.query(func.sum(FinancialRevenue.amount)).filter(
+            FinancialRevenue.reference_year < year
+        ).scalar() or 0.0
+        prev_rev = float(prev_rev_sum)
 
-    prev_rev_sum = db.query(FinancialRevenue).filter(
-        FinancialRevenue.reference_year == prev_year,
-        FinancialRevenue.reference_month == prev_month
-    ).all()
-    prev_rev = sum(r.amount for r in prev_rev_sum)
+        # Sum Expenses
+        prev_exp_sum = db.query(func.sum(FinancialExpense.amount)).filter(
+            FinancialExpense.reference_year < year
+        ).scalar() or 0.0
+        prev_exp = float(prev_exp_sum)
 
-    prev_exp_sum = db.query(FinancialExpense).filter(
-        FinancialExpense.reference_year == prev_year,
-        FinancialExpense.reference_month == prev_month
-    ).all()
-    prev_exp = sum(e.amount for e in prev_exp_sum)
+        # Sum Salaries
+        for y in range(start_year, year):
+            for m in range(1, 13):
+                prev_sal += calculate_salaries_for_period(db, y, m)
 
-    prev_sal = calculate_salaries_for_period(db, prev_year, prev_month)
     prev_balance = prev_rev - (prev_exp + prev_sal)
 
     # Category-wise aggregation

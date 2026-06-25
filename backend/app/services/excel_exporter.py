@@ -41,7 +41,7 @@ def export_consolidated_data_excel(db: Session) -> io.BytesIO:
         "Cargo", "Departamento", "Data Admissão", "Salário Base", "Status"
     ]
     
-    ws1.append(["LIRA MELO ADVOCACIA - GESTÃO DE PESSOAL"])
+    ws1.append(["MEURESTÔ - GESTÃO DE PESSOAL"])
     ws1.cell(1, 1).font = title_font
     ws1.append([]) # Empty spacer
     ws1.append(headers1)

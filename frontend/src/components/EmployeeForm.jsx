@@ -58,7 +58,7 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
             
             admission_date: emp.contract?.admission_date || '',
             role: emp.contract?.role || '',
-            department: emp.contract?.department || 'Advocacia',
+            department: emp.contract?.department || 'Cozinha',
             manager_name: emp.contract?.manager_name || '',
             base_salary: emp.contract?.base_salary || '',
             
@@ -125,7 +125,7 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
     // Contract
     admission_date: '',
     role: '',
-    department: 'Advocacia',
+    department: 'Cozinha',
     manager_name: '',
     base_salary: '',
     
@@ -727,12 +727,12 @@ const EmployeeForm = ({ onCancel, onSuccess, employeeId }) => {
                     onChange={handleInputChange}
                     className="form-input cursor-pointer"
                   >
-                    <option value="Advocacia">Advocacia</option>
-                    <option value="Controladoria">Controladoria</option>
+                    <option value="Cozinha">Cozinha</option>
+                    <option value="Salão">Salão</option>
+                    <option value="Copa / Bar">Copa / Bar</option>
+                    <option value="Delivery">Delivery</option>
                     <option value="Administrativo">Administrativo</option>
-                    <option value="Financeiro">Financeiro</option>
-                    <option value="Recursos Humanos">Recursos Humanos</option>
-                    <option value="TI">TI</option>
+                    <option value="Serviços Gerais">Serviços Gerais</option>
                   </select>
                 </div>
 

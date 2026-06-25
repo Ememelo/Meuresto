@@ -75,7 +75,7 @@ def generate_employee_ficha_pdf(emp: Employee) -> io.BytesIO:
     )
 
     # 1. Header Title
-    story.append(Paragraph("LIRA MELO ADVOCACIA", title_style))
+    story.append(Paragraph("MEURESTÔ", title_style))
     story.append(Paragraph("Ficha de Registro de Colaborador", subtitle_style))
     story.append(Spacer(1, 10))
     

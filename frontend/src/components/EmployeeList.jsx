@@ -126,12 +126,12 @@ const EmployeeList = ({ onSelectEmployee, onAddNew, onEditEmployee, onDeleteEmpl
             className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all appearance-none cursor-pointer"
           >
             <option value="">Todos os Setores</option>
-            <option value="Advocacia">Advocacia</option>
-            <option value="Controladoria">Controladoria</option>
+            <option value="Cozinha">Cozinha</option>
+            <option value="Salão">Salão</option>
+            <option value="Copa / Bar">Copa / Bar</option>
+            <option value="Delivery">Delivery</option>
             <option value="Administrativo">Administrativo</option>
-            <option value="Financeiro">Financeiro</option>
-            <option value="Recursos Humanos">Recursos Humanos</option>
-            <option value="TI">TI</option>
+            <option value="Serviços Gerais">Serviços Gerais</option>
           </select>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
             <Filter className="w-3.5 h-3.5" />

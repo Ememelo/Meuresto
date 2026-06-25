@@ -47,7 +47,7 @@ def get_consolidated_excel(
     
     log_action(db, current_user.id, "EXPORT_EXCEL")
     
-    filename = "relatorio_consolidado_lira_rh.xlsx"
+    filename = "relatorio_consolidado_meuresto.xlsx"
     
     return StreamingResponse(
         excel_buffer,

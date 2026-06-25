@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
-import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff } from 'lucide-react'
+import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff, Database, Download, Upload, Smartphone, Wifi } from 'lucide-react'
 
 const UserSettings = () => {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const isSocioOrAdmin = user?.role === 'admin' || user?.role === 'socio'
 
   const [activeTab, setActiveTab] = useState('profile')
+  const [localIp, setLocalIp] = useState('127.0.0.1')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
@@ -109,6 +111,71 @@ const UserSettings = () => {
     }
   }
 
+  useEffect(() => {
+    const fetchLocalIp = async () => {
+      try {
+        const res = await api.get('/backup/ip')
+        setLocalIp(res.data.local_ip)
+      } catch (e) {
+        // silent fail
+      }
+    }
+    if (activeTab === 'backup' && isSocioOrAdmin) {
+      fetchLocalIp()
+    }
+  }, [activeTab])
+
+  const handleExportBackup = async () => {
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await api.get('/backup/download', {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `meuresto_backup_${new Date().toISOString().split('T')[0]}.db`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setSuccess('Backup gerado e baixado com sucesso!')
+    } catch (err) {
+      setError('Falha ao gerar o arquivo de backup. Verifique se o servidor local está ativo.')
+    }
+  }
+
+  const handleRestoreBackup = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (!window.confirm('ATENÇÃO: Restaurar o backup substituirá TODOS os dados atuais do sistema! Deseja continuar?')) {
+      e.target.value = ''
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+
+    try {
+      const res = await api.post('/backup/restore', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      setSuccess(res.data.message || 'Banco de dados restaurado com sucesso!')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao restaurar o banco de dados. Certifique-se de que é um arquivo .db válido.')
+    } finally {
+      setLoading(false)
+      e.target.value = ''
+    }
+  }
+
   const handleToggleActive = async (targetUser) => {
     if (targetUser.username === user.username) {
       alert('Você não pode desativar seu próprio usuário.')
@@ -189,6 +256,20 @@ const UserSettings = () => {
                 Gerenciar Usuários
               </button>
             </>
+          )}
+
+          {isSocioOrAdmin && (
+            <button
+              onClick={() => { setActiveTab('backup'); setError(null); setSuccess(null); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all text-left cursor-pointer ${
+                activeTab === 'backup'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/10'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <Database className="w-4 h-4" />
+              Backup e Celular
+            </button>
           )}
 
           <div className="border-t border-slate-100 pt-3 px-3 mt-4 text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
@@ -471,6 +552,100 @@ const UserSettings = () => {
             </div>
           )}
 
+          {/* TAB 4: BACKUP & MOBILE CONNECTION */}
+          {activeTab === 'backup' && isSocioOrAdmin && (
+            <div className="space-y-8 animate-fadeIn">
+              {/* Backup Section */}
+              <div className="space-y-6">
+                <div className="border-b border-slate-100 pb-3">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Database className="w-5 h-5 text-amber-500" />
+                    Cópia de Segurança (Backup Local)
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Exporte ou restaure todos os dados do sistema. Os arquivos de backup são armazenados em sua máquina local.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Export Card */}
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200/60 flex flex-col justify-between space-y-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Exportar Banco de Dados</h3>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Faça o download do banco de dados completo (`lira_rh.db`). Salve este arquivo em um pendrive ou e-mail para segurança.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleExportBackup}
+                      disabled={loading}
+                      className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Baixar Arquivo de Backup (.db)
+                    </button>
+                  </div>
+
+                  {/* Import Card */}
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200/60 flex flex-col justify-between space-y-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-850">Restaurar Banco de Dados</h3>
+                      <p className="text-xs text-slate-550 mt-1 leading-relaxed">
+                        Selecione um arquivo de backup (`.db`) anteriormente exportado para substituir todos os dados atuais.
+                      </p>
+                    </div>
+                    <label className="w-full btn-secondary py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer text-slate-700 bg-white border border-slate-350 hover:bg-slate-50 rounded-xl transition-all">
+                      <Upload className="w-4 h-4" />
+                      Enviar Arquivo de Backup (.db)
+                      <input
+                        type="file"
+                        accept=".db"
+                        onChange={handleRestoreBackup}
+                        disabled={loading}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Access Section */}
+              <div className="space-y-6 pt-4">
+                <div className="border-b border-slate-100 pb-3">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Smartphone className="w-5 h-5 text-amber-500" />
+                    Acesso Móvel no Celular (Mesmo Wi-Fi)
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Utilize o MeuRestô diretamente no seu celular ou tablet compartilhando a rede Wi-Fi local do seu computador.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200/60 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 rounded-xl">
+                      <Wifi className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-sm font-bold text-slate-800">Conecte via Rede Wi-Fi Local</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        1. Certifique-se de que o seu celular e este computador estejam conectados na **mesma rede Wi-Fi**.<br />
+                        2. No navegador do seu celular, digite o seguinte endereço IP:
+                      </p>
+                      <div className="inline-block bg-slate-800 text-amber-400 font-mono font-bold text-sm px-4 py-2 rounded-xl mt-2 select-all shadow-inner border border-slate-700">
+                        http://{localIp}:5173
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200/60 p-4 rounded-xl text-xs text-amber-800 leading-relaxed font-semibold">
+                    💡 **Trabalho Off-line e Auto-Sincronismo:** Caso você precise sair do Wi-Fi com o celular, você poderá continuar cadastrando dados off-line (com 4G/5G ou sem internet). O celular guardará tudo em uma fila temporária local e, assim que você se conectar novamente ao Wi-Fi local deste computador, o celular enviará as alterações de forma automática!
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
 
       </div>
@@ -480,3 +655,4 @@ const UserSettings = () => {
 }
 
 export default UserSettings
+

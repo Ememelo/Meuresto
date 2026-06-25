@@ -290,19 +290,31 @@ const Financial = () => {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Sincronizando...' : 'Sincronizar'}
-          </button>
+               </button>
         </div>
       )}
 
       {/* Header and Controls */}
       <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            Controle Financeiro
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Gestão mensal e anual de entradas, saídas, salários e compras do MeuRestô.
-          </p>
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">
+              Controle Financeiro
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Gestão mensal e anual de entradas, saídas, salários e compras do MeuRestô.
+            </p>
+          </div>
+          {summary?.previous_month_balance !== undefined && (
+            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-650 rounded-lg border border-slate-200">
+                Saldo Anterior: <span className={summary.previous_month_balance < 0 ? 'text-red-600' : 'text-slate-800'}>{formatCurrency(summary.previous_month_balance)}</span>
+              </span>
+              <span className="px-2.5 py-1 bg-amber-500/10 text-amber-700 rounded-lg border border-amber-500/20">
+                Saldo Acumulado: <span className={(summary.previous_month_balance + netResult) < 0 ? 'text-red-650' : 'text-emerald-700'}>{formatCurrency(summary.previous_month_balance + netResult)}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Year & Month Picker */}
@@ -314,7 +326,7 @@ const Financial = () => {
               onChange={(e) => setYear(parseInt(e.target.value))}
               className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all cursor-pointer"
             >
-              {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map(y => (
+              {Array.from({ length: 2040 - 2024 + 1 }, (_, i) => 2024 + i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
@@ -467,6 +479,84 @@ const Financial = () => {
             </div>
           </div>
 
+          {/* Category Distribution Grid (Revenues & Expenses Breakdown) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Receitas por Categoria */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Receitas por Categoria
+                </h3>
+              </div>
+              <div className="space-y-4">
+                {(!summary?.category_revenues || Object.keys(summary.category_revenues).length === 0) ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma receita registrada no período.</p>
+                ) : (
+                  (() => {
+                    const maxVal = Math.max(...Object.values(summary.category_revenues), 1)
+                    return Object.entries(summary.category_revenues)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cat, val]) => {
+                        const pct = (val / maxVal) * 100
+                        return (
+                          <div key={cat} className="space-y-1.5 animate-fadeIn">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-slate-700 font-bold">{cat}</span>
+                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5">
+                              <div 
+                                className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" 
+                                style={{ width: `${pct}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  })()
+                )}
+              </div>
+            </div>
+
+            {/* Despesas por Categoria */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Despesas e Custos por Categoria
+                </h3>
+              </div>
+              <div className="space-y-4">
+                {(!summary?.category_expenses || Object.keys(summary.category_expenses).length === 0) ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma despesa registrada no período.</p>
+                ) : (
+                  (() => {
+                    const maxVal = Math.max(...Object.values(summary.category_expenses), 1)
+                    return Object.entries(summary.category_expenses)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cat, val]) => {
+                        const pct = (val / maxVal) * 100
+                        const isSalary = cat === 'Salários'
+                        return (
+                          <div key={cat} className="space-y-1.5 animate-fadeIn">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-slate-700 font-bold">{cat}</span>
+                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5">
+                              <div 
+                                className={`h-2.5 rounded-full transition-all duration-500 ${isSalary ? 'bg-purple-500' : 'bg-rose-500'}`} 
+                                style={{ width: `${pct}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  })()
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Detailed breakdown table */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100">
@@ -510,6 +600,84 @@ const Financial = () => {
       ) : (
         // --- MONTHLY VIEW ---
         <div className="space-y-8 animate-fadeIn">
+          {/* Category Distribution Grid (Revenues & Expenses Breakdown) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Receitas por Categoria */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Receitas por Categoria
+                </h3>
+              </div>
+              <div className="space-y-4">
+                {(!summary?.category_revenues || Object.keys(summary.category_revenues).length === 0) ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma receita registrada no período.</p>
+                ) : (
+                  (() => {
+                    const maxVal = Math.max(...Object.values(summary.category_revenues), 1)
+                    return Object.entries(summary.category_revenues)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cat, val]) => {
+                        const pct = (val / maxVal) * 100
+                        return (
+                          <div key={cat} className="space-y-1.5 animate-fadeIn">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-slate-700 font-bold">{cat}</span>
+                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5">
+                              <div 
+                                className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" 
+                                style={{ width: `${pct}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  })()
+                )}
+              </div>
+            </div>
+
+            {/* Despesas por Categoria */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                  Despesas e Custos por Categoria
+                </h3>
+              </div>
+              <div className="space-y-4">
+                {(!summary?.category_expenses || Object.keys(summary.category_expenses).length === 0) ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">Nenhuma despesa registrada no período.</p>
+                ) : (
+                  (() => {
+                    const maxVal = Math.max(...Object.values(summary.category_expenses), 1)
+                    return Object.entries(summary.category_expenses)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cat, val]) => {
+                        const pct = (val / maxVal) * 100
+                        const isSalary = cat === 'Salários'
+                        return (
+                          <div key={cat} className="space-y-1.5 animate-fadeIn">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-slate-700 font-bold">{cat}</span>
+                              <span className="text-slate-500 font-mono">{formatCurrency(val)}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5">
+                              <div 
+                                className={`h-2.5 rounded-full transition-all duration-500 ${isSalary ? 'bg-purple-500' : 'bg-rose-500'}`} 
+                                style={{ width: `${pct}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  })()
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
             {/* Revenues (Receitas) section */}

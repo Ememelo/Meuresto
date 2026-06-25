@@ -319,4 +319,6 @@ class FinancialSummaryResponse(BaseModel):
     net_result: float
     margin_percentage: float
     previous_month_balance: Optional[float] = 0.0
+    category_revenues: Optional[Dict[str, float]] = None
+    category_expenses: Optional[Dict[str, float]] = None
     monthly_breakdown: List[FinancialSummaryMonth]

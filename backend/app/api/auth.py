@@ -111,6 +111,44 @@ def register(
     
     return db_user
 
+# Cadastro Público de Novo Usuário
+@router.post("/signup", response_model=UserResponse)
+def signup(
+    user_in: UserCreate,
+    db: Session = Depends(get_db)
+):
+    existing_user = db.query(User).filter(
+        (User.username == user_in.username) | (User.email == user_in.email)
+    ).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Usuário com este nome de usuário ou e-mail já existe."
+        )
+    
+    db_user = User(
+        username=user_in.username,
+        email=user_in.email,
+        password_hash=get_password_hash(user_in.password),
+        role=user_in.role,
+        is_active=True
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    log_action(
+        db, 
+        None, 
+        "USER_SIGNUP", 
+        "users", 
+        db_user.id, 
+        {"username": db_user.username, "role": db_user.role}
+    )
+    
+    return db_user
+
+
 # Obter dados do usuário logado
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):

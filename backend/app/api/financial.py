@@ -183,6 +183,28 @@ def get_financial_summary(
     prev_sal = calculate_salaries_for_period(db, prev_year, prev_month)
     prev_balance = prev_rev - (prev_exp + prev_sal)
 
+    # Category-wise aggregation
+    rev_query = db.query(FinancialRevenue).filter(FinancialRevenue.reference_year == year)
+    if month is not None:
+        rev_query = rev_query.filter(FinancialRevenue.reference_month == month)
+    all_revs = rev_query.all()
+    
+    category_revenues = {}
+    for r in all_revs:
+        category_revenues[r.category] = category_revenues.get(r.category, 0.0) + r.amount
+
+    exp_query = db.query(FinancialExpense).filter(FinancialExpense.reference_year == year)
+    if month is not None:
+        exp_query = exp_query.filter(FinancialExpense.reference_month == month)
+    all_exps = exp_query.all()
+    
+    category_expenses = {}
+    for e in all_exps:
+        category_expenses[e.category] = category_expenses.get(e.category, 0.0) + e.amount
+    
+    if total_sal > 0:
+        category_expenses["Salários"] = total_sal
+
     return {
         "year": year,
         "month": month,
@@ -192,6 +214,8 @@ def get_financial_summary(
         "net_result": net_result,
         "margin_percentage": round(margin, 2),
         "previous_month_balance": prev_balance,
+        "category_revenues": category_revenues,
+        "category_expenses": category_expenses,
         "monthly_breakdown": monthly_breakdown
     }
 

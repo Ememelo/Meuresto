@@ -18,6 +18,8 @@ from app.api.reports import router as reports_router
 from app.api.dashboard import router as dashboard_router
 from app.api.audit import router as audit_router
 from app.api.financial import router as financial_router
+from app.api.backup import router as backup_router
+
 
 # Create Database tables on startup
 Base.metadata.create_all(bind=engine)
@@ -106,6 +108,8 @@ app.include_router(reports_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
 app.include_router(financial_router, prefix="/api")
+app.include_router(backup_router, prefix="/api")
+
 
 @app.get("/")
 def read_root():

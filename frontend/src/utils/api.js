@@ -91,7 +91,31 @@ api.interceptors.response.use(
       }
     }
 
+    // Catch Network Errors on write requests (server unreachable/offline)
+    if (!response && config && ['post', 'put', 'delete'].includes(config.method?.toLowerCase())) {
+      const desc = `${config.method.toUpperCase()} ${config.url}`
+      let parsedData = config.data
+      if (typeof config.data === 'string') {
+        try {
+          parsedData = JSON.parse(config.data)
+        } catch (e) {}
+      }
+      const tempId = queueRequest(config.method.toUpperCase(), config.url, parsedData, desc)
+      return {
+        data: {
+          id: tempId,
+          offline: true,
+          ...parsedData
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: config
+      }
+    }
+
     return Promise.reject(error)
+
   }
 )
 

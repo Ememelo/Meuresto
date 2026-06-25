@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Sidebar from './components/Sidebar'
 import { Menu } from 'lucide-react'
@@ -11,6 +11,8 @@ import Reports from './components/Reports'
 import Financial from './components/Financial'
 import AuditLogs from './components/AuditLogs'
 import UserSettings from './components/UserSettings'
+import api from './utils/api'
+import { getSyncQueue, syncPendingRequests } from './utils/offlineSync'
 
 const AppContent = () => {
   const { user, loading } = useAuth()
@@ -21,6 +23,31 @@ const AppContent = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null)
   const [addingNewEmployee, setAddingNewEmployee] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState(null)
+
+  // Background Ping and Auto-Sync
+  useEffect(() => {
+    if (!user) return
+
+    const checkServerAndSync = async () => {
+      try {
+        const res = await api.get('/')
+        if (res.status === 200) {
+          const queue = getSyncQueue()
+          if (queue.length > 0) {
+            console.log(`Auto-Sync: Found ${queue.length} pending items. Syncing...`)
+            await syncPendingRequests(api)
+          }
+        }
+      } catch (err) {
+        // Silent catch
+      }
+    }
+
+    checkServerAndSync()
+    const interval = setInterval(checkServerAndSync, 15000)
+    return () => clearInterval(interval)
+  }, [user])
+
 
   if (loading) {
     return (

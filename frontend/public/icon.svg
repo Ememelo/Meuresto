@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0b1329;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded Background -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  
+  <!-- Outer Ring -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#goldGrad)" stroke-width="16" stroke-linecap="round" />
+  
+  <!-- Inner Ring (Plate) -->
+  <circle cx="256" cy="256" r="120" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-dasharray="8 8" opacity="0.6" />
+  
+  <!-- Utensils Drawing Group (Centered) -->
+  <g transform="translate(196, 176) scale(1.5)" fill="url(#goldGrad)">
+    <!-- Fork (Left) -->
+    <path d="M 8 0 L 8 20 A 4 4 0 0 0 16 20 L 16 0 M 12 0 L 12 20 M 12 24 L 12 50" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Knife (Right) -->
+    <path d="M 50 0 C 42 0 42 20 42 30 L 42 50 M 42 30 L 50 30" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

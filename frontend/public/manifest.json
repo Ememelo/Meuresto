@@ -1,0 +1,18 @@
+{
+  "short_name": "MeuRestô",
+  "name": "MeuRestô — Gestão de Restaurante",
+  "description": "Sistema de gestão de pessoal, custos, receitas e folha de pagamentos para restaurantes.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b1329",
+  "theme_color": "#d97706",
+  "display": "standalone",
+  "orientation": "portrait"
+}

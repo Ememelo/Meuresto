@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Scale, Lock, User, AlertCircle } from 'lucide-react'
+import { UtensilsCrossed, Lock, User, AlertCircle } from 'lucide-react'
 
 const Login = () => {
   const { login, error, setError } = useAuth()
@@ -27,10 +27,10 @@ const Login = () => {
         {/* Brand Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 mb-4 shadow-lg shadow-amber-500/10">
-            <Scale className="w-7 h-7" />
+            <UtensilsCrossed className="w-7 h-7" />
           </div>
-          <h2 className="text-xl font-extrabold text-slate-100 tracking-wider">LIRA RH MANAGER</h2>
-          <p className="text-xs text-slate-400 mt-1">Lira Melo Advocacia - Painel do Colaborador</p>
+          <h2 className="text-xl font-extrabold text-slate-100 tracking-wider">MEURESTÔ</h2>
+          <p className="text-xs text-slate-400 mt-1">Gestão de Restaurante - Painel Administrativo</p>
         </div>
 
         {/* Error Alert Box */}
@@ -95,7 +95,7 @@ const Login = () => {
 
         {/* Footer info */}
         <div className="text-center mt-8 text-[11px] text-slate-500 font-medium border-t border-slate-800/80 pt-6">
-          <p>© 2026 Lira Melo Advocacia.</p>
+          <p>© 2026 MeuRestô.</p>
           <p className="mt-1 text-slate-600">Acesso restrito a colaboradores autorizados.</p>
         </div>
 

@@ -8,6 +8,7 @@ import EmployeeList from './components/EmployeeList'
 import EmployeeForm from './components/EmployeeForm'
 import EmployeeDetails from './components/EmployeeDetails'
 import Reports from './components/Reports'
+import Financial from './components/Financial'
 import AuditLogs from './components/AuditLogs'
 import UserSettings from './components/UserSettings'
 
@@ -89,6 +90,8 @@ const AppContent = () => {
         )
       case 'reports':
         return <Reports />
+      case 'financial':
+        return <Financial />
       case 'audit':
         return <AuditLogs />
       case 'settings':
@@ -136,7 +139,7 @@ const AppContent = () => {
             </div>
           </div>
           <div className="text-xs font-semibold text-slate-400 hidden sm:block">
-            Lira RH Manager v1.0.0
+            MeuRestô v1.0.0
           </div>
         </header>
         

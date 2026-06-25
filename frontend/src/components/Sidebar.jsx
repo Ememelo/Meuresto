@@ -6,7 +6,8 @@ import {
   FileSpreadsheet, 
   ShieldAlert, 
   LogOut, 
-  Scale,
+  UtensilsCrossed,
+  TrendingUp,
   Settings,
   X
 } from 'lucide-react'
@@ -17,6 +18,7 @@ const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
     { id: 'employees', label: 'Colaboradores', icon: Users, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
+    { id: 'financial', label: 'Financeiro', icon: TrendingUp, roles: ['admin', 'socio'] },
     { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet, roles: ['admin', 'rh', 'socio'] },
     { id: 'audit', label: 'Auditoria', icon: ShieldAlert, roles: ['admin'] },
     { id: 'settings', label: 'Acesso & Usuários', icon: Settings, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] }
@@ -49,10 +51,10 @@ const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
         {/* Brand Header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Scale className="text-amber-500 w-7 h-7" />
+            <UtensilsCrossed className="text-amber-500 w-7 h-7" />
             <div>
-              <h1 className="font-extrabold text-sm tracking-wider text-slate-100 m-0">LIRA ADVOCACIA</h1>
-              <p className="text-[10px] text-amber-500 font-semibold tracking-widest uppercase m-0">People Manager</p>
+              <h1 className="font-extrabold text-sm tracking-wider text-slate-100 m-0">MEURESTÔ</h1>
+              <p className="text-[10px] text-amber-500 font-semibold tracking-widest uppercase m-0">Gestão de Restaurante</p>
             </div>
           </div>
           <button

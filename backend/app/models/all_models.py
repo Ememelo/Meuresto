@@ -176,3 +176,29 @@ class AuditLog(Base):
     
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+
+
+class FinancialRevenue(Base):
+    __tablename__ = "financial_revenues"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    description = Column(String(255), nullable=False)
+    amount = Column(Float, nullable=False)
+    category = Column(String(50), nullable=False)  # Vendas, Delivery, Eventos, Outros
+    date = Column(Date, nullable=False)
+    created_by = Column(String(50), nullable=True)
+    reference_month = Column(Integer, nullable=False)
+    reference_year = Column(Integer, nullable=False)
+
+
+class FinancialExpense(Base):
+    __tablename__ = "financial_expenses"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    description = Column(String(255), nullable=False)
+    amount = Column(Float, nullable=False)
+    category = Column(String(50), nullable=False)  # Compras/Insumos, Salários, Aluguel, Energia/Água, Equipamentos, Marketing, Outros
+    date = Column(Date, nullable=False)
+    created_by = Column(String(50), nullable=True)
+    reference_month = Column(Integer, nullable=False)
+    reference_year = Column(Integer, nullable=False)

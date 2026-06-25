@@ -126,7 +126,7 @@ const Dashboard = () => {
           <p className="text-sm text-slate-500 mt-1">
             {data?.is_individual 
               ? 'Visualizando métricas e histórico profissional individual deste colaborador.' 
-              : 'Métricas gerais e indicadores de pessoal do Lira Melo Advocacia.'}
+              : 'Métricas gerais e indicadores de pessoal do MeuRestô.'}
           </p>
         </div>
         

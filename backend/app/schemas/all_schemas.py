@@ -257,3 +257,59 @@ class AuditLogResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# ----------------- Financial Schemas -----------------
+class FinancialRevenueBase(BaseModel):
+    description: str
+    amount: float
+    category: str
+    date: date
+
+class FinancialRevenueCreate(FinancialRevenueBase):
+    pass
+
+class FinancialRevenueResponse(FinancialRevenueBase):
+    id: str
+    created_by: Optional[str] = None
+    reference_month: int
+    reference_year: int
+
+    class Config:
+        orm_mode = True
+
+class FinancialExpenseBase(BaseModel):
+    description: str
+    amount: float
+    category: str
+    date: date
+
+class FinancialExpenseCreate(FinancialExpenseBase):
+    pass
+
+class FinancialExpenseResponse(FinancialExpenseBase):
+    id: str
+    created_by: Optional[str] = None
+    reference_month: int
+    reference_year: int
+
+    class Config:
+        orm_mode = True
+
+class FinancialSummaryMonth(BaseModel):
+    month: int
+    month_name: str
+    revenues: float
+    expenses: float
+    salaries: float
+    net: float
+
+class FinancialSummaryResponse(BaseModel):
+    year: int
+    month: Optional[int] = None
+    total_revenues: float
+    total_expenses: float
+    total_salaries: float
+    net_result: float
+    margin_percentage: float
+    monthly_breakdown: List[FinancialSummaryMonth]

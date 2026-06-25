@@ -1,7 +1,7 @@
 import os
 
 class Settings:
-    PROJECT_NAME: str = "Lira People Management"
+    PROJECT_NAME: str = "MeuRestô"
     API_V1_STR: str = "/api"
     
     # Security

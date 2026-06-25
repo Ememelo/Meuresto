@@ -17,13 +17,14 @@ from app.api.shifts import router as shifts_router
 from app.api.reports import router as reports_router
 from app.api.dashboard import router as dashboard_router
 from app.api.audit import router as audit_router
+from app.api.financial import router as financial_router
 
 # Create Database tables on startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API de Gestão de Pessoas para o Lira Melo Advocacia",
+    description="Backend API - MeuRestô",
     version="1.0.0"
 )
 
@@ -53,7 +54,7 @@ def seed_admin_user():
             hashed_pwd = get_password_hash("admin")
             default_admin = User(
                 username="admin",
-                email="admin@liramelo.com.br",
+                email="admin@meuresto.com.br",
                 password_hash=hashed_pwd,
                 role="admin",
                 is_active=True
@@ -79,6 +80,7 @@ app.include_router(shifts_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
+app.include_router(financial_router, prefix="/api")
 
 @app.get("/")
 def read_root():

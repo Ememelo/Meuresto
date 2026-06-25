@@ -16,10 +16,10 @@ const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
   const { user, logout } = useAuth()
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['rh', 'socio', 'gestor', 'consulta'] },
-    { id: 'employees', label: 'Colaboradores', icon: Users, roles: ['rh', 'socio', 'gestor', 'consulta'] },
-    { id: 'financial', label: 'Financeiro', icon: TrendingUp, roles: ['socio'] },
-    { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet, roles: ['rh', 'socio'] },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
+    { id: 'employees', label: 'Colaboradores', icon: Users, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] },
+    { id: 'financial', label: 'Financeiro', icon: TrendingUp, roles: ['admin', 'socio'] },
+    { id: 'reports', label: 'Relatórios', icon: FileSpreadsheet, roles: ['admin', 'rh', 'socio'] },
     { id: 'settings', label: 'Acesso & Usuários', icon: Settings, roles: ['admin', 'rh', 'socio', 'gestor', 'consulta'] }
   ]
 
@@ -68,7 +68,11 @@ const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen }) => {
       {/* Navigation Items */}
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
-          if (!item.roles.includes(user?.role)) return null
+          let hasAccess = item.roles.includes(user?.role)
+          if (item.id === 'financial' && user?.has_financial_access) {
+            hasAccess = true
+          }
+          if (!hasAccess) return null
           const Icon = item.icon
           const isActive = activeTab === item.id
 

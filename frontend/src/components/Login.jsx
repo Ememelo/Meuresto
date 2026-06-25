@@ -173,7 +173,6 @@ const Login = () => {
                   className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm transition-all cursor-pointer"
                 >
                   <option value="socio">Sócio-Diretor (Acesso Total + Financeiro)</option>
-                  <option value="admin">Administrador (Master)</option>
                   <option value="rh">Recursos Humanos (RH)</option>
                   <option value="gestor">Gestor de Equipe</option>
                   <option value="consulta">Somente Leitura</option>

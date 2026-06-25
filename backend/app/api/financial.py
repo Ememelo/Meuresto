@@ -26,9 +26,21 @@ from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/financial", tags=["financial"])
 
-# Roles permitted to view and manage financial data
-financial_viewers = ["admin", "socio"]
-financial_managers = ["admin", "socio"]
+def check_financial_viewer(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role in ["admin", "socio"] or current_user.has_financial_access:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Você não tem permissão para visualizar dados financeiros."
+    )
+
+def check_financial_manager(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role in ["admin", "socio"] or current_user.has_financial_access:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Você não tem permissão para gerenciar dados financeiros."
+    )
 
 def get_month_name(month_num: int) -> str:
     names = {
@@ -104,7 +116,7 @@ def get_financial_summary(
     year: int,
     month: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_viewers)),
+    current_user: User = Depends(check_financial_viewer),
 ):
     """
     Get financial summary (revenues, expenses, salaries, net results) for a year or a specific month.
@@ -272,7 +284,7 @@ def list_revenues(
     year: Optional[int] = None,
     month: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_viewers)),
+    current_user: User = Depends(check_financial_viewer),
 ):
     query = db.query(FinancialRevenue).filter(FinancialRevenue.user_id == current_user.id)
     if year:
@@ -285,7 +297,7 @@ def list_revenues(
 def create_revenue(
     revenue_in: FinancialRevenueCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     ref_month = revenue_in.date.month
     ref_year = revenue_in.date.year
@@ -319,7 +331,7 @@ def update_revenue(
     revenue_id: str,
     revenue_in: FinancialRevenueCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     db_revenue = db.query(FinancialRevenue).filter(FinancialRevenue.id == revenue_id, FinancialRevenue.user_id == current_user.id).first()
     if not db_revenue:
@@ -351,7 +363,7 @@ def update_revenue(
 def delete_revenue(
     revenue_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     db_revenue = db.query(FinancialRevenue).filter(FinancialRevenue.id == revenue_id, FinancialRevenue.user_id == current_user.id).first()
     if not db_revenue:
@@ -377,7 +389,7 @@ def list_expenses(
     year: Optional[int] = None,
     month: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_viewers)),
+    current_user: User = Depends(check_financial_viewer),
 ):
     query = db.query(FinancialExpense).filter(FinancialExpense.user_id == current_user.id)
     if year:
@@ -390,7 +402,7 @@ def list_expenses(
 def create_expense(
     expense_in: FinancialExpenseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     ref_month = expense_in.date.month
     ref_year = expense_in.date.year
@@ -424,7 +436,7 @@ def update_expense(
     expense_id: str,
     expense_in: FinancialExpenseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     db_expense = db.query(FinancialExpense).filter(FinancialExpense.id == expense_id, FinancialExpense.user_id == current_user.id).first()
     if not db_expense:
@@ -456,7 +468,7 @@ def update_expense(
 def delete_expense(
     expense_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(financial_managers)),
+    current_user: User = Depends(check_financial_manager),
 ):
     db_expense = db.query(FinancialExpense).filter(FinancialExpense.id == expense_id, FinancialExpense.user_id == current_user.id).first()
     if not db_expense:

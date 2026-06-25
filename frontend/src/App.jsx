@@ -24,13 +24,6 @@ const AppContent = () => {
   const [addingNewEmployee, setAddingNewEmployee] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState(null)
 
-  // Redirect admin users to settings tab on load/login
-  useEffect(() => {
-    if (user && user.role === 'admin' && activeTab !== 'settings') {
-      setActiveTab('settings')
-    }
-  }, [user, activeTab])
-
   // Background Ping and Auto-Sync
   useEffect(() => {
     if (!user) return

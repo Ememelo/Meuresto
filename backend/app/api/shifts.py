@@ -27,7 +27,7 @@ def update_employee_shift(
     employee_id: str,
     shift_in: ShiftBase,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -57,7 +57,7 @@ def update_employee_shift(
 def launch_overtime(
     overtime_in: OvertimeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == overtime_in.employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -119,7 +119,7 @@ def update_overtime_status(
     overtime_id: str,
     status_update: OvertimeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh", "socio"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
     if not ot:
@@ -144,7 +144,7 @@ def update_overtime_status(
 def delete_overtime(
     overtime_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
     if not ot:
@@ -159,7 +159,7 @@ def edit_overtime(
     overtime_id: str,
     overtime_in: OvertimeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     ot = db.query(Overtime).join(Employee).filter(Overtime.id == overtime_id, Employee.user_id == current_user.id).first()
     if not ot:

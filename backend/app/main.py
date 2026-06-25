@@ -71,6 +71,15 @@ def auto_migrate():
             db.execute(text("ALTER TABLE users ADD COLUMN password_reset_requested BOOLEAN DEFAULT false"))
             db.commit()
 
+        # Add has_financial_access to users
+        try:
+            db.execute(text("SELECT has_financial_access FROM users LIMIT 1"))
+        except Exception:
+            db.rollback()
+            print("Auto-migration: Adding column has_financial_access to users table...")
+            db.execute(text("ALTER TABLE users ADD COLUMN has_financial_access BOOLEAN DEFAULT false"))
+            db.commit()
+
         # Update existing records to default admin's user_id if null
         admin_user = db.query(User).filter(User.username == "admin").first()
         if admin_user:

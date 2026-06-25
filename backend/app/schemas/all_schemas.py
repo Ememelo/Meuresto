@@ -15,9 +15,13 @@ class UserResponse(UserBase):
     id: str
     is_active: bool
     password_reset_requested: bool = False
+    has_financial_access: bool = False
 
     class Config:
         orm_mode = True
+
+class UserRoleUpdateRequest(BaseModel):
+    role: str
 
 class Token(BaseModel):
     access_token: str

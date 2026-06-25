@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.models.all_models import User
 from app.schemas.all_schemas import (
     Token, LoginRequest, UserResponse, UserCreate, PasswordChangeRequest,
-    AdminPasswordResetRequest, ForgotPasswordRequest
+    AdminPasswordResetRequest, ForgotPasswordRequest, UserRoleUpdateRequest
 )
 from app.services.audit_service import log_action
 
@@ -94,6 +94,11 @@ def register(
     current_user: User = Depends(RoleChecker(["admin"]))
 ):
     validate_email_format(user_in.email)
+    if user_in.role == "admin":
+        raise HTTPException(
+            status_code=400,
+            detail="O perfil Administrador (Master) é exclusivo e não pode ser concedido a outros usuários."
+        )
     existing_user = db.query(User).filter(
         (User.username == user_in.username) | (User.email == user_in.email)
     ).first()
@@ -132,6 +137,11 @@ def signup(
     db: Session = Depends(get_db)
 ):
     validate_email_format(user_in.email)
+    if user_in.role == "admin":
+        raise HTTPException(
+            status_code=400,
+            detail="O perfil Administrador (Master) é exclusivo e não pode ser concedido a outros usuários."
+        )
     existing_user = db.query(User).filter(
         (User.username == user_in.username) | (User.email == user_in.email)
     ).first()
@@ -248,3 +258,65 @@ def admin_reset_password(
     db.commit()
     log_action(db, current_user.id, "ADMIN_RESET_PASSWORD", "users", user_id, {"username": user.username})
     return {"message": f"Senha do usuário {user.username} redefinida com sucesso."}
+
+
+# Alterar Nível de Acesso de Outro Usuário (Apenas Admin)
+@router.put("/users/{user_id}/role")
+def update_user_role(
+    user_id: str,
+    req: UserRoleUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Você não pode alterar seu próprio nível de acesso.")
+    if req.role == "admin":
+        raise HTTPException(status_code=400, detail="O perfil Administrador (Master) é exclusivo e não pode ser concedido a outros usuários.")
+        
+    old_role = user.role
+    user.role = req.role
+    db.commit()
+    log_action(db, current_user.id, "UPDATE_USER_ROLE", "users", user_id, {"username": user.username, "old_role": old_role, "new_role": req.role})
+    return {"message": f"Nível de acesso do usuário {user.username} atualizado para {req.role} com sucesso."}
+
+
+# Alternar Acesso Financeiro de Outro Usuário (Apenas Admin)
+@router.put("/users/{user_id}/toggle-financial-access")
+def toggle_user_financial_access(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if user.role == "admin":
+        raise HTTPException(status_code=400, detail="O administrador sempre possui acesso financeiro.")
+        
+    user.has_financial_access = not user.has_financial_access
+    db.commit()
+    log_action(db, current_user.id, "TOGGLE_USER_FINANCIAL_ACCESS", "users", user_id, {"username": user.username, "financial_access": user.has_financial_access})
+    return {"message": "Status de acesso financeiro atualizado com sucesso.", "has_financial_access": user.has_financial_access}
+
+
+# Excluir Conta de Usuário (Apenas Admin)
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin"]))
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Você não pode excluir seu próprio usuário.")
+        
+    username = user.username
+    db.delete(user)
+    db.commit()
+    log_action(db, current_user.id, "DELETE_USER", "users", user_id, {"username": username})
+    return {"message": f"Usuário {username} excluído com sucesso."}

@@ -18,6 +18,7 @@ class User(Base):
     role = Column(String(20), default="consulta", nullable=False)  # admin, rh, socio, gestor, consulta
     is_active = Column(Boolean, default=True, nullable=False)
     password_reset_requested = Column(Boolean, default=False, nullable=False)
+    has_financial_access = Column(Boolean, default=False, nullable=False)
     
     # Relationships
     audit_logs = relationship("AuditLog", back_populates="user")

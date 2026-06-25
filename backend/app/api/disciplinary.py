@@ -15,7 +15,7 @@ router = APIRouter(tags=["disciplinary_and_leaves"])
 def create_disciplinary_action(
     action_in: DisciplinaryActionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == action_in.employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -79,7 +79,7 @@ def get_employee_disciplinary_actions(
 def create_leave(
     leave_in: LeaveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == leave_in.employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -136,7 +136,7 @@ def get_employee_leaves(
 def delete_disciplinary_action(
     action_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     action = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id, Employee.user_id == current_user.id).first()
     if not action:
@@ -150,7 +150,7 @@ def delete_disciplinary_action(
 def delete_leave(
     leave_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     leave = db.query(Leave).join(Employee).filter(Leave.id == leave_id, Employee.user_id == current_user.id).first()
     if not leave:
@@ -165,7 +165,7 @@ def update_disciplinary_action(
     action_id: str,
     action_in: DisciplinaryActionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     action = db.query(DisciplinaryAction).join(Employee).filter(DisciplinaryAction.id == action_id, Employee.user_id == current_user.id).first()
     if not action:
@@ -186,7 +186,7 @@ def update_leave(
     leave_id: str,
     leave_in: LeaveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     leave = db.query(Leave).join(Employee).filter(Leave.id == leave_id, Employee.user_id == current_user.id).first()
     if not leave:

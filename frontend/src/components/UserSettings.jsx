@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
-import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff, Database, Download, Upload, Smartphone, Wifi } from 'lucide-react'
+import { Shield, Key, UserPlus, Users, AlertCircle, CheckCircle2, Power, Eye, EyeOff, Database, Download, Upload, Smartphone, Wifi, Trash2 } from 'lucide-react'
 
 const UserSettings = () => {
   const { user } = useAuth()
@@ -208,6 +208,36 @@ const UserSettings = () => {
         fetchUsers()
       } catch (err) {
         alert(err.response?.data?.detail || 'Erro ao alterar status do usuário.')
+      }
+    }
+  }
+
+  const handleUpdateUserRole = async (userId, newRole) => {
+    try {
+      await api.put(`/auth/users/${userId}/role`, { role: newRole })
+      fetchUsers()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Erro ao atualizar o perfil do usuário.')
+    }
+  }
+
+  const handleToggleFinancialAccess = async (userId) => {
+    try {
+      await api.put(`/auth/users/${userId}/toggle-financial-access`)
+      fetchUsers()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Erro ao alterar o acesso financeiro do usuário.')
+    }
+  }
+
+  const handleDeleteUser = async (targetUser) => {
+    if (window.confirm(`ATENÇÃO: Você tem certeza que deseja EXCLUIR DEFINITIVAMENTE o usuário "${targetUser.username}"? Esta ação não pode ser desfeita.`)) {
+      try {
+        await api.delete(`/auth/users/${targetUser.id}`)
+        alert(`Usuário "${targetUser.username}" excluído com sucesso.`)
+        fetchUsers()
+      } catch (err) {
+        alert(err.response?.data?.detail || 'Erro ao excluir o usuário.')
       }
     }
   }
@@ -461,7 +491,6 @@ const UserSettings = () => {
                     <option value="gestor">Gestor de Área (Leitura + Lançamento de extras)</option>
                     <option value="socio">Sócio-Diretor (Leitura + Aprovações e Relatórios)</option>
                     <option value="rh">Recursos Humanos (Operação total, sem Auditoria)</option>
-                    <option value="admin">Administrador (Controle completo do sistema)</option>
                   </select>
                 </div>
 
@@ -507,6 +536,7 @@ const UserSettings = () => {
                         <th className="px-4 py-3">Usuário</th>
                         <th className="px-4 py-3">E-mail</th>
                         <th className="px-4 py-3">Perfil de Acesso</th>
+                        <th className="px-4 py-3 text-center">Acesso Financeiro</th>
                         <th className="px-4 py-3 text-center">Status</th>
                         <th className="px-4 py-3 text-center">Ações</th>
                       </tr>
@@ -531,15 +561,40 @@ const UserSettings = () => {
                             </td>
                             <td className="px-4 py-3 text-slate-500">{u.email}</td>
                             <td className="px-4 py-3 font-semibold text-slate-700">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                                u.role === 'admin' ? 'bg-red-50 text-red-700 border border-red-100' :
-                                u.role === 'rh' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
-                                u.role === 'socio' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                u.role === 'gestor' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                'bg-slate-50 text-slate-700 border border-slate-100'
-                              }`}>
-                                {getRoleLabel(u.role)}
-                              </span>
+                              {isSelf || u.role === 'admin' ? (
+                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  u.role === 'admin' ? 'bg-red-50 text-red-700 border border-red-100' :
+                                  u.role === 'rh' ? 'bg-purple-50 text-purple-700 border border-purple-100' :
+                                  u.role === 'socio' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                  u.role === 'gestor' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                  'bg-slate-50 text-slate-700 border border-slate-100'
+                                }`}>
+                                  {getRoleLabel(u.role)}
+                                </span>
+                              ) : (
+                                <select
+                                  value={u.role}
+                                  onChange={(e) => handleUpdateUserRole(u.id, e.target.value)}
+                                  className="px-2 py-1 bg-slate-950 border border-slate-800 rounded text-slate-100 text-[10px] focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold cursor-pointer"
+                                >
+                                  <option value="socio">Sócio-Diretor</option>
+                                  <option value="rh">Recursos Humanos</option>
+                                  <option value="gestor">Gestor de Área</option>
+                                  <option value="consulta">Leitura/Consulta</option>
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isSelf || u.role === 'admin' ? (
+                                <span className="text-slate-400 font-semibold text-[10px]">-</span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={u.has_financial_access || false}
+                                  onChange={() => handleToggleFinancialAccess(u.id)}
+                                  className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                />
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={`inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full ${
@@ -559,20 +614,29 @@ const UserSettings = () => {
                                 >
                                   <Key className="w-4 h-4" />
                                 </button>
-                                {!isSelf ? (
-                                  <button
-                                    onClick={() => handleToggleActive(u)}
-                                    className={`p-1.5 rounded transition-all cursor-pointer ${
-                                      u.is_active
-                                        ? 'text-red-500 hover:text-red-700 hover:bg-red-50'
-                                        : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
-                                    }`}
-                                    title={u.is_active ? 'Desativar Conta' : 'Ativar Conta'}
-                                  >
-                                    <Power className="w-4 h-4" />
-                                  </button>
+                                {!isSelf && u.role !== 'admin' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleToggleActive(u)}
+                                      className={`p-1.5 rounded transition-all cursor-pointer ${
+                                        u.is_active
+                                          ? 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                                          : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                                      }`}
+                                      title={u.is_active ? 'Desativar Conta' : 'Ativar Conta'}
+                                    >
+                                      <Power className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteUser(u)}
+                                      className="p-1.5 rounded text-red-500 hover:text-red-700 hover:bg-red-50 transition-all cursor-pointer"
+                                      title="Excluir Conta"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
                                 ) : (
-                                  <span className="w-7 text-center text-slate-300 font-semibold text-[10px]">-</span>
+                                  !isSelf && <span className="w-7 text-center text-slate-300 font-semibold text-[10px]">-</span>
                                 )}
                               </div>
                             </td>

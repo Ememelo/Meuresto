@@ -100,7 +100,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
   }
 
   // Permissions checks
-  const isRHOrAdmin = ['admin', 'rh'].includes(user?.role)
+  const isRHOrAdmin = user?.role === 'rh'
   const isSocio = user?.role === 'socio'
   
   // Format currency

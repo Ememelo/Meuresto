@@ -109,7 +109,7 @@ def get_employee(
 def create_employee(
     emp_in: EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     # Auto-generate or check registration number
     reg_num = emp_in.registration_number
@@ -221,7 +221,7 @@ def update_employee(
     employee_id: str,
     emp_update: EmployeeUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     db_emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
     if not db_emp:
@@ -288,7 +288,7 @@ def upload_photo(
     employee_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -328,7 +328,7 @@ def get_employee_career_history(
 def delete_employee(
     employee_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -344,7 +344,7 @@ def delete_employee(
 def delete_dependent(
     dependent_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id, Employee.user_id == current_user.id).first()
     if not dep:
@@ -359,7 +359,7 @@ def add_dependent(
     employee_id: str,
     dep_in: DependentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     emp = db.query(Employee).filter(Employee.id == employee_id, Employee.user_id == current_user.id).first()
     if not emp:
@@ -381,7 +381,7 @@ def update_dependent(
     dependent_id: str,
     dep_in: DependentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["admin", "rh"]))
+    current_user: User = Depends(RoleChecker(["rh"]))
 ):
     dep = db.query(Dependent).join(Employee).filter(Dependent.id == dependent_id, Employee.user_id == current_user.id).first()
     if not dep:

@@ -1,5 +1,7 @@
 import io
 import json
+from datetime import date
+from typing import Optional
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from sqlalchemy.orm import Session

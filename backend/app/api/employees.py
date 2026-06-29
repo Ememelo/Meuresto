@@ -405,18 +405,13 @@ def delete_employee(
     if not emp:
         raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
     
-    # Soft delete (status = terminated)
-    old_status = emp.status
-    emp.status = "terminated"
-    
-    if emp.contract:
-        emp.contract.status = "Desligado"
-        
-    log_career(db, employee_id, current_user.username, "status", old_status, "terminated", "Demissão/Desligamento pelo RH")
+    # Physical delete
+    name = emp.name
+    db.delete(emp)
     db.commit()
     
-    log_action(db, current_user.id, "DELETE_EMPLOYEE_SOFT", "employees", employee_id, {"name": emp.name, "status": "terminated"})
-    return {"message": "Cadastro do colaborador alterado para Desligado com sucesso."}
+    log_action(db, current_user.id, "DELETE_EMPLOYEE", "employees", employee_id, {"name": name})
+    return {"message": f"Cadastro do colaborador '{name}' excluído permanentemente com sucesso."}
 
 @router.delete("/dependent/{dependent_id}")
 def delete_dependent(

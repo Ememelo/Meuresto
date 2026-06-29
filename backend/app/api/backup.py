@@ -1,6 +1,6 @@
 import os
 import shutil
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/backup", tags=["backup"])
 
 @router.get("/download")
 def download_backup(
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(RoleChecker(["admin", "admin_delegado"]))
 ):
     """
@@ -29,11 +30,28 @@ def download_backup(
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail="Arquivo de banco de dados não encontrado.")
     
-    return FileResponse(
-        path=db_path,
-        filename="meuresto_backup.db",
-        media_type="application/x-sqlite3"
-    )
+    import sqlite3
+    import uuid
+    
+    temp_backup_path = f"{db_path}.download.{uuid.uuid4().hex}"
+    try:
+        src_conn = sqlite3.connect(db_path)
+        dest_conn = sqlite3.connect(temp_backup_path)
+        with dest_conn:
+            src_conn.backup(dest_conn)
+        src_conn.close()
+        dest_conn.close()
+        
+        background_tasks.add_task(os.remove, temp_backup_path)
+        return FileResponse(
+            path=temp_backup_path,
+            filename="meuresto_backup.db",
+            media_type="application/x-sqlite3"
+        )
+    except Exception as e:
+        if os.path.exists(temp_backup_path):
+            os.remove(temp_backup_path)
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar backup: {str(e)}")
 
 @router.post("/restore")
 def restore_backup(
@@ -92,6 +110,10 @@ def restore_backup(
                 raise e
         else:
             os.rename(temp_path, db_path)
+            
+        # Ensure all tables are created in the restored database (auto-schema upgrade)
+        from app.db.session import engine as db_engine, Base
+        Base.metadata.create_all(bind=db_engine)
             
         # Log this administrative restore action in the database (will use new connection)
         # We need to open a temporary session for logging

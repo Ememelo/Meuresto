@@ -21,6 +21,14 @@ def list_sectors(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    target_group_id = current_user.group_id if current_user.role != "admin" else group_id
+    if target_group_id:
+        try:
+            from app.services.restaurant_defaults import prepopulate_restaurant_defaults
+            prepopulate_restaurant_defaults(db, target_group_id)
+        except Exception:
+            pass
+
     query = db.query(Sector)
     if current_user.role != "admin":
         query = query.filter(Sector.group_id == current_user.group_id)

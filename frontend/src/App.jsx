@@ -16,6 +16,7 @@ import HRSectors from './components/HRSectors'
 import HRJobPositions from './components/HRJobPositions'
 import HRWorkScales from './components/HRWorkScales'
 import HRDocuments from './components/HRDocuments'
+import Inventory from './components/Inventory'
 import api from './utils/api'
 import { getSyncQueue, syncPendingRequests } from './utils/offlineSync'
 
@@ -136,6 +137,8 @@ const AppContent = () => {
         return <Financial />
       case 'suppliers':
         return <Financial forceSubTab="suppliers" />
+      case 'inventory':
+        return <Inventory />
       case 'audit':
         return <AuditLogs />
       case 'settings':

@@ -549,3 +549,40 @@ class FinancialSummaryResponse(BaseModel):
     monthly_breakdown: List[FinancialSummaryMonth]
 
 
+# ----------------- InventoryItem Schemas -----------------
+class InventoryItemBase(BaseModel):
+    name: str
+    category: str
+    quantity: float
+    unit: str
+    min_quantity: float
+    unit_cost: float
+
+class InventoryItemCreate(InventoryItemBase):
+    pass
+
+class InventoryItemUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    min_quantity: Optional[float] = None
+    unit_cost: Optional[float] = None
+
+class InventoryItemResponse(InventoryItemBase):
+    id: str
+    group_id: str
+    created_at: datetime
+    updated_at: datetime
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class InventoryItemAdjust(BaseModel):
+    quantity_change: float
+    reason: str
+
+
+

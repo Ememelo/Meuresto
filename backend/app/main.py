@@ -24,6 +24,7 @@ from app.api.suppliers import router as suppliers_router
 from app.api.sectors import router as sectors_router
 from app.api.job_positions import router as job_positions_router
 from app.api.work_scales import router as work_scales_router
+from app.api.inventory import router as inventory_router
 
 
 # Create Database tables on startup
@@ -378,6 +379,7 @@ app.include_router(suppliers_router, prefix="/api")
 app.include_router(sectors_router, prefix="/api")
 app.include_router(job_positions_router, prefix="/api")
 app.include_router(work_scales_router, prefix="/api")
+app.include_router(inventory_router, prefix="/api")
 
 
 @app.on_event("startup")

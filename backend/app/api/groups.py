@@ -48,6 +48,13 @@ def create_group(
     db.commit()
     db.refresh(new_group)
     
+    # Pre-populate default sectors and positions for the new restaurant
+    try:
+        from app.services.restaurant_defaults import prepopulate_restaurant_defaults
+        prepopulate_restaurant_defaults(db, new_group.id)
+    except Exception:
+        pass
+        
     log_action(db, current_user.id, "CREATE_GROUP", "groups", new_group.id, {"name": new_group.name})
     return new_group
 

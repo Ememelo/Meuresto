@@ -60,6 +60,34 @@ const Financial = ({ forceSubTab }) => {
   // Edit items
   const [editingItem, setEditingItem] = useState(null) // { type: 'revenue'|'expense'|'supplier', id, ... }
 
+  // Clients states
+  const [clients, setClients] = useState([])
+  const [showClientModal, setShowClientModal] = useState(false)
+  const [clientForm, setClientForm] = useState({
+    corporate_name: '',
+    trade_name: '',
+    cnpj: '',
+    contact_person: '',
+    phone: '',
+    whatsapp: '',
+    email: '',
+    address: '',
+    is_active: true
+  })
+
+  // Salary adjustments states
+  const [employees, setEmployees] = useState([])
+  const [salaryAdjustments, setSalaryAdjustments] = useState([])
+  const [showSalaryModal, setShowSalaryModal] = useState(false)
+  const [salaryForm, setSalaryForm] = useState({
+    employee_id: '',
+    year: currentYear,
+    month: currentMonth,
+    vacation_payment: '',
+    discount: '',
+    notes: ''
+  })
+
   // Revenue Form
   const [revForm, setRevForm] = useState({
     description: '',
@@ -302,6 +330,7 @@ const Financial = ({ forceSubTab }) => {
         payment_method: item.payment_method || 'PIX',
         status: item.status,
         client: item.client || '',
+        client_id: item.client_id || '',
         observations: item.observations || ''
       })
     } else {
@@ -316,6 +345,7 @@ const Financial = ({ forceSubTab }) => {
         payment_method: 'PIX',
         status: 'A Receber',
         client: '',
+        client_id: '',
         observations: ''
       })
     }

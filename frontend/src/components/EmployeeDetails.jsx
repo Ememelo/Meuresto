@@ -57,6 +57,15 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
   const [wtYear, setWtYear] = useState(new Date().getFullYear())
   const [wtMonth, setWtMonth] = useState(new Date().getMonth() + 1)
 
+  const formatDateLocal = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.includes('/')) return dateStr;
+    const justDate = dateStr.split('T')[0];
+    const parts = justDate.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
   const fetchWorkedTime = async (y, m) => {
     try {
       const res = await api.get(`/employees/${employeeId}/worked-time?year=${y}&month=${m}`)
@@ -89,6 +98,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
       setDocuments(docRes?.data || [])
       
       setLoading(false)
+      fetchWorkedTime(wtYear, wtMonth)
     } catch (err) {
       setError('Erro ao carregar detalhes do colaborador.')
       setLoading(false)
@@ -463,7 +473,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                 <div><span className="font-bold text-slate-500 text-xs block">Nome Completo:</span> <span className="text-slate-800 font-medium">{emp.name}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">CPF:</span> <span className="text-slate-800">{emp.cpf}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">RG:</span> <span className="text-slate-800">{emp.rg}</span></div>
-                <div><span className="font-bold text-slate-500 text-xs block">Data de Nascimento:</span> <span className="text-slate-800">{new Date(emp.dob).toLocaleDateString('pt-BR')}</span></div>
+                <div><span className="font-bold text-slate-500 text-xs block">Data de Nascimento:</span> <span className="text-slate-800">{formatDateLocal(emp.dob)}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">Estado Civil:</span> <span className="text-slate-800">{emp.civil_status}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">Nacionalidade:</span> <span className="text-slate-800">{emp.nationality}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">Escolaridade:</span> <span className="text-slate-800">{emp.education}</span></div>
@@ -507,7 +517,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
             <div>
               <h3 className="text-xs font-bold text-amber-600 uppercase tracking-widest border-b border-slate-100 pb-1.5 mb-3">Contrato & Benefícios</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-                <div><span className="font-bold text-slate-500 text-xs block">Data de Admissão:</span> <span className="text-slate-800">{emp.contract?.admission_date ? new Date(emp.contract.admission_date).toLocaleDateString('pt-BR') : 'N/A'}</span></div>
+                <div><span className="font-bold text-slate-500 text-xs block">Data de Admissão:</span> <span className="text-slate-800">{emp.contract?.admission_date ? formatDateLocal(emp.contract.admission_date) : 'N/A'}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">Escala de Trabalho:</span> <span className="text-slate-800">{emp.shift?.scale_type || 'N/A'}</span></div>
                 <div><span className="font-bold text-slate-500 text-xs block">Horário:</span> <span className="text-slate-800">{emp.shift ? `${emp.shift.entry_time} às ${emp.shift.exit_time}` : 'N/A'}</span></div>
                 
@@ -621,7 +631,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-slate-500">
-                          Nasc.: {new Date(dep.dob).toLocaleDateString('pt-BR')}
+                          Nasc.: {formatDateLocal(dep.dob)}
                         </span>
                         {isRHOrAdmin && (
                           <div className="flex gap-1 ml-2">
@@ -827,7 +837,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                            'Desligamento Disciplinar'}
                         </h4>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500 font-semibold">{new Date(act.action_date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">{formatDateLocal(act.action_date)}</span>
                           {isRHOrAdmin && (
                             <div className="flex gap-1 ml-2">
                               <button
@@ -1042,7 +1052,7 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                         const totalMin = ot.hours_50_minutes + ot.hours_100_minutes + ot.hours_night_minutes
                         return (
                           <tr key={ot.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 text-slate-500 font-semibold">{new Date(ot.date).toLocaleDateString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-slate-500 font-semibold">{formatDateLocal(ot.date)}</td>
                             <td className="px-4 py-3 text-center">{ot.hours_50_minutes} min</td>
                             <td className="px-4 py-3 text-center">{ot.hours_100_minutes} min</td>
                             <td className="px-4 py-3 text-center">{ot.hours_night_minutes} min</td>
@@ -1163,8 +1173,8 @@ const EmployeeDetails = ({ employeeId, onBack, onEditEmployee }) => {
                   <tbody className="divide-y divide-slate-100">
                     {leaves.map((leave) => (
                       <tr key={leave.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-semibold text-slate-700">{new Date(leave.start_date).toLocaleDateString('pt-BR')}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-700">{new Date(leave.end_date).toLocaleDateString('pt-BR')}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-700">{formatDateLocal(leave.start_date)}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-700">{formatDateLocal(leave.end_date)}</td>
                         <td className="px-4 py-3 text-slate-800 font-bold">{leave.reason}</td>
                         <td className="px-4 py-3 text-slate-500 italic">Sem anexo</td>
                         {isRHOrAdmin && (

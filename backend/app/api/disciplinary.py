@@ -88,9 +88,13 @@ def create_leave(
         reason=leave_in.reason
     )
     
-    # Automatically update employee status to on_leave if current date falls within range
-    # For simplicity, we can set status to "on_leave" immediately
-    emp.status = "on_leave"
+    db.add(db_leave)
+    db.commit()
+    db.refresh(db_leave)
+    
+    # Sync status dynamically based on current date
+    from app.api.employees import sync_employee_status_by_id
+    sync_employee_status_by_id(db, emp.id)
     
     # Log career change
     from app.models.all_models import CareerHistory
@@ -99,13 +103,11 @@ def create_leave(
         changed_by_username=current_user.username,
         field_name="status",
         old_value="active",
-        new_value="on_leave",
+        new_value=emp.status,
         reason=f"Afastamento: {leave_in.reason}"
     )
     db.add(history)
-    db.add(db_leave)
     db.commit()
-    db.refresh(db_leave)
     
     log_action(
         db, 
@@ -152,11 +154,14 @@ def delete_leave(
     query = db.query(Leave).join(Employee).filter(Leave.id == leave_id)
     if current_user.role != "admin":
         query = query.filter(Employee.group_id == current_user.group_id)
-    leave = query.first()
-    if not leave:
-        raise HTTPException(status_code=404, detail="Afastamento não encontrado.")
+    employee_id = leave.employee_id
     db.delete(leave)
     db.commit()
+    
+    # Sync status
+    from app.api.employees import sync_employee_status_by_id
+    sync_employee_status_by_id(db, employee_id)
+    
     log_action(db, current_user.id, "DELETE_LEAVE", "leaves", leave_id)
     return {"message": "Afastamento excluído com sucesso."}
 
@@ -202,6 +207,11 @@ def update_leave(
     leave.reason = leave_in.reason
     db.commit()
     db.refresh(leave)
+    
+    # Sync status
+    from app.api.employees import sync_employee_status_by_id
+    sync_employee_status_by_id(db, leave.employee_id)
+    
     log_action(db, current_user.id, "UPDATE_LEAVE", "leaves", leave_id, {"reason": leave_in.reason})
     return leave
 

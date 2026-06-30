@@ -36,6 +36,28 @@ def log_career(db: Session, employee_id: str, username: str, field: str, old_val
     )
     db.add(history)
 
+# Helper to sync employee status based on active leaves
+def sync_employee_status_by_id(db: Session, employee_id: str):
+    from datetime import date
+    from app.models.all_models import Leave
+    
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if not emp or emp.status == "terminated":
+        return
+        
+    today = date.today()
+    active_leave = db.query(Leave).filter(
+        Leave.employee_id == employee_id,
+        Leave.start_date <= today,
+        Leave.end_date >= today
+    ).first()
+    
+    expected_status = "on_leave" if active_leave else "active"
+    if emp.status != expected_status:
+        emp.status = expected_status
+        db.add(emp)
+        db.commit()
+
 # List Employees with Search & Filters
 @router.get("", response_model=List[EmployeeListResponse])
 def list_employees(
@@ -67,6 +89,7 @@ def list_employees(
     # Format response with nested contract data
     results = []
     for emp in employees:
+        sync_employee_status_by_id(db, emp.id)
         contract_role = emp.contract.role if emp.contract else None
         contract_dept = emp.contract.department if emp.contract else None
         contract_adm = emp.contract.admission_date if emp.contract else None
@@ -114,6 +137,7 @@ def get_employee(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    sync_employee_status_by_id(db, employee_id)
     return check_employee_group(db, employee_id, current_user)
 
 # Create employee (RH, Admin Master, or Admin Delegado)

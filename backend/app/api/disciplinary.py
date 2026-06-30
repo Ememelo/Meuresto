@@ -154,6 +154,9 @@ def delete_leave(
     query = db.query(Leave).join(Employee).filter(Leave.id == leave_id)
     if current_user.role != "admin":
         query = query.filter(Employee.group_id == current_user.group_id)
+    leave = query.first()
+    if not leave:
+        raise HTTPException(status_code=404, detail="Afastamento não encontrado.")
     employee_id = leave.employee_id
     db.delete(leave)
     db.commit()
